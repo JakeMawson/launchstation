@@ -155,6 +155,12 @@ require_match "$HOMEBREW_SETUP" 'job_is_loaded.*&&.*fail|job_is_loaded.*fail' \
   'Homebrew setup helper does not refuse an active mismatched service contract'
 require_match "$HOMEBREW_SETUP" 'LAUNCH_CLI.*list[[:space:]]+--json' \
   'Homebrew setup helper does not wait for a real authenticated read-only catalog response'
+require_match "$HOMEBREW_SETUP" 'replace[[:space:]]+ProgramArguments[[:space:]]+-json' \
+  'Homebrew setup helper does not replace the complete daemon argument array'
+require_no_match "$HOMEBREW_SETUP" 'ProgramArguments[.]0' \
+  'Homebrew setup helper uses plutil array-index replacement, which duplicates the daemon argument'
+require_match "$HOMEBREW_SETUP" 'for[[:space:]]+attempt[[:space:]]+in[[:space:]]+[{]1[.][.]30[}]' \
+  'Homebrew setup helper has no bounded readiness retry window'
 
 # The public verifier has no caller-controlled tool/policy override; test doubles
 # are reachable only through the harness stored under Tests/.

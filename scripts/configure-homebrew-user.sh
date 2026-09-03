@@ -84,7 +84,7 @@ if [[ "$MODE" == "uninstall" ]]; then
   exit 0
 fi
 
-[[ -n "$APP_PATH" && "$APP_PATH" == /* && "$APP_PATH" != *$'\n'* && "$APP_PATH" != *$'\r'* ]] || \
+[[ -n "$APP_PATH" && "$APP_PATH" == /* && "$APP_PATH" != *$'\n'* && "$APP_PATH" != *$'\r'* && "$APP_PATH" != *'"'* && "$APP_PATH" != *'\\'* ]] || \
   fail "--install requires a one-line absolute app path"
 APP_PATH="${APP_PATH:a}"
 require_real_directory "$APP_PATH" "application bundle"
@@ -128,7 +128,8 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 /bin/cp "$TEMPLATE" "$temporary_agent"
-/usr/bin/plutil -replace ProgramArguments.0 -string "$APP_PATH/Contents/Helpers/launchstationd" "$temporary_agent"
+daemon_path="$APP_PATH/Contents/Helpers/launchstationd"
+/usr/bin/plutil -replace ProgramArguments -json "[\"$daemon_path\"]" "$temporary_agent"
 /usr/bin/plutil -replace EnvironmentVariables.PATH -string "$HOME/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin" "$temporary_agent"
 /usr/bin/plutil -replace StandardOutPath -string "$LOG_DIRECTORY/service.log" "$temporary_agent"
 /usr/bin/plutil -replace StandardErrorPath -string "$LOG_DIRECTORY/service-error.log" "$temporary_agent"
@@ -160,7 +161,15 @@ fi
 # bounded readiness/recovery policy.
 LAUNCH_CLI="$APP_PATH/Contents/Resources/bin/launch"
 [[ -x "$LAUNCH_CLI" && ! -L "$LAUNCH_CLI" ]] || fail "application CLI is missing or unsafe"
-"$LAUNCH_CLI" list --json >/dev/null 2>&1 || \
+service_ready=false
+for attempt in {1..30}; do
+  if "$LAUNCH_CLI" list --json >/dev/null 2>&1; then
+    service_ready=true
+    break
+  fi
+  (( attempt < 30 )) && /bin/sleep 1
+done
+[[ "$service_ready" == "true" ]] || \
   fail "the Launch Station service did not become ready after installation"
 
 print -- "Configured Launch Station for the current user. Existing launcher data was not modified."
