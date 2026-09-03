@@ -5,12 +5,14 @@ umask 022
 
 ROOT="${0:A:h:h}"
 BUILD_PATH="${BUILD_PATH:-$ROOT/.build}"
-SKILL_ROOT="$ROOT/Skills/codex-launcher"
+SKILL_ROOT="$ROOT/Skills/launchstation"
 RELEASE_TRUST_POLICY="$ROOT/Resources/ReleaseTrustPolicy.plist"
 RELEASE_POLICY_LIBRARY="$ROOT/scripts/release-trust-policy.zsh"
-BUILD_MODE="${CODEX_LAUNCHER_PACKAGE_MODE:-development}"
-SIGNING_IDENTITY="${CODEX_LAUNCHER_SIGNING_IDENTITY:-}"
-NOTARY_PROFILE="${CODEX_LAUNCHER_NOTARY_PROFILE:-}"
+HOMEBREW_SETUP="$ROOT/scripts/configure-homebrew-user.sh"
+LAUNCH_AGENT_TEMPLATE="$ROOT/Resources/com.jakemawson.launchstation.service.plist"
+BUILD_MODE="${LAUNCH_STATION_PACKAGE_MODE:-development}"
+SIGNING_IDENTITY="${LAUNCH_STATION_SIGNING_IDENTITY:-}"
+NOTARY_PROFILE="${LAUNCH_STATION_NOTARY_PROFILE:-}"
 
 usage() {
   cat <<'EOF'
@@ -32,8 +34,8 @@ or environment variables:
   --notary-profile KEYCHAIN_PROFILE
 
 Environment aliases:
-  CODEX_LAUNCHER_SIGNING_IDENTITY
-  CODEX_LAUNCHER_NOTARY_PROFILE
+  LAUNCH_STATION_SIGNING_IDENTITY
+  LAUNCH_STATION_NOTARY_PROFILE
 
 The checked-in trust policy is intentionally unconfigured until its release
 owner records the actual certificate identity in a reviewed source change.
@@ -100,7 +102,7 @@ elif [[ "$BUILD_MODE" == "release" ]]; then
 else
   OUTPUT_ROOT="$ROOT/dist/development"
 fi
-BUNDLE="$OUTPUT_ROOT/Codex Launcher.app"
+BUNDLE="$OUTPUT_ROOT/Launch Station.app"
 
 for required in SKILL.md agents/openai.yaml VERSION; do
   [[ -f "$SKILL_ROOT/$required" && ! -L "$SKILL_ROOT/$required" ]] || {
@@ -110,6 +112,14 @@ for required in SKILL.md agents/openai.yaml VERSION; do
 done
 [[ -f "$RELEASE_TRUST_POLICY" && ! -L "$RELEASE_TRUST_POLICY" ]] || {
   print -u2 "Invalid release trust policy source: $RELEASE_TRUST_POLICY must be a regular non-symlink file"
+  exit 2
+}
+[[ -x "$HOMEBREW_SETUP" && ! -L "$HOMEBREW_SETUP" ]] || {
+  print -u2 "Invalid Homebrew setup source: $HOMEBREW_SETUP must be a regular executable file"
+  exit 2
+}
+[[ -f "$LAUNCH_AGENT_TEMPLATE" && ! -L "$LAUNCH_AGENT_TEMPLATE" ]] || {
+  print -u2 "Invalid LaunchAgent source: $LAUNCH_AGENT_TEMPLATE must be a regular non-symlink file"
   exit 2
 }
 skill_version=$(/usr/bin/tr -d '[:space:]' < "$SKILL_ROOT/VERSION")
@@ -122,7 +132,7 @@ app_version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$ROO
   print -u2 "Bundled SKILL.md is missing YAML frontmatter"
   exit 2
 }
-/usr/bin/grep -qx 'name: codex-launcher' "$SKILL_ROOT/SKILL.md" || {
+/usr/bin/grep -qx 'name: launchstation' "$SKILL_ROOT/SKILL.md" || {
   print -u2 "Bundled SKILL.md has the wrong skill name"
   exit 2
 }
@@ -165,8 +175,8 @@ validate_release_configuration() {
 
 if [[ "$BUILD_MODE" == "release" ]]; then
   validate_release_configuration
-  NOTARY_SUBMISSION_ARCHIVE="$OUTPUT_ROOT/Codex Launcher-$app_version-notary-upload.zip"
-  DISTRIBUTION_ARCHIVE="$OUTPUT_ROOT/Codex Launcher-$app_version-notarized.zip"
+  NOTARY_SUBMISSION_ARCHIVE="$OUTPUT_ROOT/Launch-Station-$app_version-notarization.zip"
+  DISTRIBUTION_ARCHIVE="$OUTPUT_ROOT/Launch-Station-$app_version.zip"
 fi
 
 if [[ -e "$BUNDLE" || -L "$BUNDLE" ]]; then
@@ -181,8 +191,8 @@ if [[ "$BUILD_MODE" == "release" ]]; then
     fail "refusing to replace existing notarized distribution archive: $DISTRIBUTION_ARCHIVE"
 fi
 
-/usr/bin/env CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-/tmp/codex-launcher-clang-cache}" \
-  SWIFT_MODULE_CACHE_PATH="${SWIFT_MODULE_CACHE_PATH:-/tmp/codex-launcher-swift-cache}" \
+/usr/bin/env CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-/tmp/launchstation-clang-cache}" \
+  SWIFT_MODULE_CACHE_PATH="${SWIFT_MODULE_CACHE_PATH:-/tmp/launchstation-swift-cache}" \
   /usr/bin/xcrun swift build -c release --jobs 2 --scratch-path "$BUILD_PATH"
 
 /bin/mkdir -p "$BUNDLE/Contents/MacOS"
@@ -192,20 +202,24 @@ fi
 
 /bin/cp "$ROOT/Resources/Info.plist" "$BUNDLE/Contents/Info.plist"
 /bin/cp "$RELEASE_TRUST_POLICY" "$BUNDLE/Contents/Resources/ReleaseTrustPolicy.plist"
-/bin/cp "$BUILD_PATH/release/CodexLauncher" "$BUNDLE/Contents/MacOS/CodexLauncher"
-/bin/cp "$BUILD_PATH/release/codex-launcherd" "$BUNDLE/Contents/Helpers/codex-launcherd"
-/bin/cp "$BUILD_PATH/release/codex-launcher-runner" "$BUNDLE/Contents/Helpers/codex-launcher-runner"
+/bin/cp "$BUILD_PATH/release/LaunchStation" "$BUNDLE/Contents/MacOS/LaunchStation"
+/bin/cp "$BUILD_PATH/release/launchstationd" "$BUNDLE/Contents/Helpers/launchstationd"
+/bin/cp "$BUILD_PATH/release/launchstation-runner" "$BUNDLE/Contents/Helpers/launchstation-runner"
 /bin/cp "$BUILD_PATH/release/launch" "$BUNDLE/Contents/Resources/bin/launch"
-/usr/bin/ditto "$SKILL_ROOT" "$BUNDLE/Contents/Resources/Skills/codex-launcher"
+/usr/bin/ditto "$SKILL_ROOT" "$BUNDLE/Contents/Resources/Skills/launchstation"
+/bin/cp "$HOMEBREW_SETUP" "$BUNDLE/Contents/Resources/bin/configure-launch-station"
+/bin/cp "$LAUNCH_AGENT_TEMPLATE" "$BUNDLE/Contents/Resources/LaunchStationLaunchAgent.plist"
 
-/bin/chmod 0755 "$BUNDLE/Contents/MacOS/CodexLauncher"
-/bin/chmod 0755 "$BUNDLE/Contents/Helpers/codex-launcherd"
-/bin/chmod 0755 "$BUNDLE/Contents/Helpers/codex-launcher-runner"
+/bin/chmod 0755 "$BUNDLE/Contents/MacOS/LaunchStation"
+/bin/chmod 0755 "$BUNDLE/Contents/Helpers/launchstationd"
+/bin/chmod 0755 "$BUNDLE/Contents/Helpers/launchstation-runner"
 /bin/chmod 0755 "$BUNDLE/Contents/Resources/bin/launch"
+/bin/chmod 0755 "$BUNDLE/Contents/Resources/bin/configure-launch-station"
+/bin/chmod 0644 "$BUNDLE/Contents/Resources/LaunchStationLaunchAgent.plist"
 /bin/chmod 0644 "$BUNDLE/Contents/Resources/ReleaseTrustPolicy.plist"
-/bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/codex-launcher/SKILL.md"
-/bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/codex-launcher/VERSION"
-/bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/codex-launcher/agents/openai.yaml"
+/bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/launchstation/SKILL.md"
+/bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/launchstation/VERSION"
+/bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/launchstation/agents/openai.yaml"
 
 PROVENANCE="$BUNDLE/Contents/Resources/BuildProvenance.plist"
 if [[ "$BUILD_MODE" == "release" ]]; then
@@ -228,9 +242,9 @@ fi
 
 typeset -a SIGNABLES
 SIGNABLES=(
-  "$BUNDLE/Contents/MacOS/CodexLauncher"
-  "$BUNDLE/Contents/Helpers/codex-launcherd"
-  "$BUNDLE/Contents/Helpers/codex-launcher-runner"
+  "$BUNDLE/Contents/MacOS/LaunchStation"
+  "$BUNDLE/Contents/Helpers/launchstationd"
+  "$BUNDLE/Contents/Helpers/launchstation-runner"
   "$BUNDLE/Contents/Resources/bin/launch"
 )
 

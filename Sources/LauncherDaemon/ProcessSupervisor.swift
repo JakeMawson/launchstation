@@ -221,7 +221,7 @@ public actor ProcessSupervisor {
     private let xcrunURL: URL
     private let simulatorOpenURL: URL
     private let helperCommandTimeoutSeconds: TimeInterval
-    private let monitorQueue = DispatchQueue(label: "com.codex.launcher.process-monitor", qos: .utility)
+    private let monitorQueue = DispatchQueue(label: "com.launchstation.process-monitor", qos: .utility)
     private var records: [UUID: ActionRunRecord] = [:]
     private var handlers: [UUID: UpdateHandler] = [:]
     private var monitors: [UUID: DispatchSourceProcess] = [:]
@@ -229,7 +229,7 @@ public actor ProcessSupervisor {
 
     public init(
         runtimeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Codex Launcher", isDirectory: true),
+            .appendingPathComponent("Library/Application Support/Launch Station", isDirectory: true),
         runnerExecutableURL: URL? = nil,
         codexPortExecutableURL: URL? = nil,
         xcrunExecutableURL: URL? = nil,
@@ -241,16 +241,16 @@ public actor ProcessSupervisor {
         self.codexPortURL = codexPortExecutableURL
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("bin/codex-port")
         let environment = ProcessInfo.processInfo.environment
-        let environmentTimeout = environment["CODEX_LAUNCHER_HELPER_TIMEOUT_SECONDS"].flatMap(Double.init)
+        let environmentTimeout = environment["LAUNCH_STATION_HELPER_TIMEOUT_SECONDS"].flatMap(Double.init)
         let selectedTimeout = helperCommandTimeoutSeconds ?? environmentTimeout ?? 120
         self.helperCommandTimeoutSeconds = selectedTimeout.isFinite && selectedTimeout > 0
             ? min(selectedTimeout, 600)
             : 120
         self.xcrunURL = xcrunExecutableURL
-            ?? environment["CODEX_LAUNCHER_XCRUN"].map { URL(fileURLWithPath: $0) }
+            ?? environment["LAUNCH_STATION_XCRUN"].map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: "/usr/bin/xcrun")
         self.simulatorOpenURL = simulatorOpenExecutableURL
-            ?? environment["CODEX_LAUNCHER_SIMULATOR_OPEN"].map { URL(fileURLWithPath: $0) }
+            ?? environment["LAUNCH_STATION_SIMULATOR_OPEN"].map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: "/usr/bin/open")
     }
 
@@ -1426,7 +1426,7 @@ public actor ProcessSupervisor {
         }
         let daemonExecutables = [Bundle.main.executableURL, commandExecutable].compactMap { $0 }
         let adjacentRunners = daemonExecutables.map {
-            $0.deletingLastPathComponent().appendingPathComponent("codex-launcher-runner")
+            $0.deletingLastPathComponent().appendingPathComponent("launchstation-runner")
         }
         let bundledRunners = daemonExecutables.compactMap { executable -> URL? in
             // Normalize Bundle-provided executable URLs to an independent path-backed
@@ -1439,7 +1439,7 @@ public actor ProcessSupervisor {
             while cursor.path != "/" {
                 if cursor.pathExtension.lowercased() == "app" {
                     return cursor.appendingPathComponent(
-                        "Contents/Helpers/codex-launcher-runner",
+                        "Contents/Helpers/launchstation-runner",
                         isDirectory: false
                     )
                 }
@@ -1454,9 +1454,9 @@ public actor ProcessSupervisor {
             + bundledRunners
             + [
                 URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                    .appendingPathComponent(".build/debug/codex-launcher-runner"),
+                    .appendingPathComponent(".build/debug/launchstation-runner"),
                 URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                    .appendingPathComponent(".build/release/codex-launcher-runner"),
+                    .appendingPathComponent(".build/release/launchstation-runner"),
             ]
         if let available = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) }) {
             return available

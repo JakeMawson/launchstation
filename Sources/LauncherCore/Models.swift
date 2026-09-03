@@ -2,7 +2,7 @@ import Foundation
 
 public enum LauncherSchema {
     public static let version = 2
-    public static let launchDetailsIdentifier = "com.codex.launcher/launch-details-v1"
+    public static let launchDetailsIdentifier = "com.launchstation/launch-details-v1"
 }
 
 public struct ProjectRecord: Codable, Equatable, Identifiable, Sendable {

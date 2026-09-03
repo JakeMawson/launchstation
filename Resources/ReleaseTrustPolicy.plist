@@ -5,22 +5,19 @@
     <!--
       Source-controlled release trust anchor. Every release package, verifier,
       installer, and upgrader reads this exact policy from the checked-out
-      Launcher source tree; a candidate app cannot supply a replacement Team ID
+      Launch Station source tree; a candidate app cannot supply a replacement Team ID
       or publisher on the command line.
 
-      Keep Configured false until the release owner has a real Developer ID
-      Application certificate. Before the first public release, set it true and
-      replace the empty values with the exact certificate publisher and ten-
-      character Apple Team ID in a reviewed source change. Do not pass these
-      values as installer arguments.
+      This policy is configured from the exact locally verified Developer ID
+      Application certificate. Do not pass these values as installer arguments.
     -->
     <key>PolicyVersion</key>
     <integer>1</integer>
     <key>Configured</key>
-    <false/>
+    <true/>
     <key>TeamIdentifier</key>
-    <string></string>
+    <string>6RWK4446NQ</string>
     <key>Publisher</key>
-    <string></string>
+    <string>Jake Mawson</string>
 </dict>
 </plist>

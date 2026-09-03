@@ -8,7 +8,7 @@ private func runDaemon() async throws {
 
     let store = try SQLiteStore(databaseURL: LauncherPaths.databaseURL)
     let environment = ProcessInfo.processInfo.environment
-    let runnerURL = environment["CODEX_LAUNCHER_RUNNER"].map { URL(fileURLWithPath: $0) }
+    let runnerURL = environment["LAUNCH_STATION_RUNNER"].map { URL(fileURLWithPath: $0) }
     let codexPortURL = environment["CODEX_PORT_EXECUTABLE"].map { URL(fileURLWithPath: $0) }
     let supervisor = ProcessSupervisor(
         runtimeDirectory: LauncherPaths.defaultStateDirectory,
@@ -70,7 +70,7 @@ Task {
     do {
         try await runDaemon()
     } catch {
-        fputs("codex-launcherd: \(error.localizedDescription)\n", stderr)
+        fputs("launchstationd: \(error.localizedDescription)\n", stderr)
         exit(1)
     }
 }

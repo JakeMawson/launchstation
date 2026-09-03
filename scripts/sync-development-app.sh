@@ -4,10 +4,10 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-EXPECTED_BUNDLE_ID="com.jakemawson.codex-launcher"
+EXPECTED_BUNDLE_ID="com.jakemawson.launchstation"
 SWAP_SOURCE="$ROOT/scripts/atomic-directory-swap.swift"
 MODE="check"
-DESTINATION="/Applications/Codex Launcher.app"
+DESTINATION="/Applications/Launch Station.app"
 SOURCE_APP=""
 
 fail() {
@@ -79,7 +79,7 @@ plist_value() {
 }
 
 sha256() {
-  /usr/bin/shasum -a 256 "$1/Contents/MacOS/CodexLauncher" | /usr/bin/awk '{print $1}'
+  /usr/bin/shasum -a 256 "$1/Contents/MacOS/LaunchStation" | /usr/bin/awk '{print $1}'
 }
 
 validate_app() {
@@ -87,8 +87,8 @@ validate_app() {
   require_real_directory "$app"
   [[ -f "$app/Contents/Info.plist" && ! -L "$app/Contents/Info.plist" ]] ||
     fail "app bundle has no safe Info.plist: $app"
-  [[ -x "$app/Contents/MacOS/CodexLauncher" && ! -L "$app/Contents/MacOS/CodexLauncher" ]] ||
-    fail "app bundle has no safe CodexLauncher executable: $app"
+  [[ -x "$app/Contents/MacOS/LaunchStation" && ! -L "$app/Contents/MacOS/LaunchStation" ]] ||
+    fail "app bundle has no safe LaunchStation executable: $app"
   [[ "$(plist_value "$app/Contents/Info.plist" CFBundleIdentifier)" == "$EXPECTED_BUNDLE_ID" ]] ||
     fail "app bundle identity is not $EXPECTED_BUNDLE_ID: $app"
   /usr/bin/codesign --verify --deep --strict "$app" >/dev/null 2>&1 ||
@@ -154,11 +154,11 @@ fi
 [[ -w "$DESTINATION_PARENT" ]] || fail "destination parent is not writable: $DESTINATION_PARENT"
 [[ ! -L "$DESTINATION" ]] || fail "destination must not be a symlink: $DESTINATION"
 
-STAGE_ROOT=$(/usr/bin/mktemp -d "$DESTINATION_PARENT/.Codex Launcher sync-stage.XXXXXX") ||
+STAGE_ROOT=$(/usr/bin/mktemp -d "$DESTINATION_PARENT/.Launch Station sync-stage.XXXXXX") ||
   fail "could not create a private staging directory in $DESTINATION_PARENT"
 /bin/chmod 700 "$STAGE_ROOT"
-STAGED_APP="$STAGE_ROOT/Codex Launcher.app"
-BACKUP_NAME="Codex Launcher build ${INSTALLED_BUILD} backup $(/bin/date -u +%Y%m%dT%H%M%SZ).app"
+STAGED_APP="$STAGE_ROOT/Launch Station.app"
+BACKUP_NAME="Launch Station build ${INSTALLED_BUILD} backup $(/bin/date -u +%Y%m%dT%H%M%SZ).app"
 BACKUP_APP="$HOME/.Trash/$BACKUP_NAME"
 [[ ! -e "$BACKUP_APP" && ! -L "$BACKUP_APP" ]] || fail "refusing an occupied backup path: $BACKUP_APP"
 
@@ -166,8 +166,8 @@ BACKUP_APP="$HOME/.Trash/$BACKUP_NAME"
 validate_development_candidate "$STAGED_APP"
 [[ "$(sha256 "$STAGED_APP")" == "$CANDIDATE_HASH" ]] || fail "staged executable hash differs from candidate"
 
-env CLANG_MODULE_CACHE_PATH=/tmp/codex-launcher-sync-clang-cache \
-  SWIFT_MODULE_CACHE_PATH=/tmp/codex-launcher-sync-swift-cache \
+env CLANG_MODULE_CACHE_PATH=/tmp/launchstation-sync-clang-cache \
+  SWIFT_MODULE_CACHE_PATH=/tmp/launchstation-sync-swift-cache \
   /usr/bin/xcrun swift "$SWAP_SOURCE" swap "$STAGED_APP" "$DESTINATION"
 
 # The staged pathname now identifies the outgoing installed app. Preserve it;

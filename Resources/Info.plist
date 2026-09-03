@@ -7,9 +7,9 @@
     <key>CFBundleDisplayName</key>
     <string>Launch Station</string>
     <key>CFBundleExecutable</key>
-    <string>CodexLauncher</string>
+    <string>LaunchStation</string>
     <key>CFBundleIdentifier</key>
-    <string>com.jakemawson.codex-launcher</string>
+    <string>com.jakemawson.launchstation</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-	<string>1.2.0</string>
+	<string>1.3.0</string>
     <key>CFBundleVersion</key>
-    <string>23</string>
+    <string>24</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.developer-tools</string>
     <key>LSMinimumSystemVersion</key>

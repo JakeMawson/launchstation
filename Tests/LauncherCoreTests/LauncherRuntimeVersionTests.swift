@@ -9,18 +9,18 @@ final class LauncherRuntimeVersionTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("fixtures", isDirectory: true)
             .appendingPathComponent("versioned-bundle", isDirectory: true)
-            .appendingPathComponent("Codex Launcher.app", isDirectory: true)
+            .appendingPathComponent("Launch Station.app", isDirectory: true)
     }
 
     func testPackagedHelperAndApplicationReadEnclosingApplicationVersion() {
         let helperExecutable = fixtureApplicationURL
             .appendingPathComponent("Contents", isDirectory: true)
             .appendingPathComponent("Helpers", isDirectory: true)
-            .appendingPathComponent("codex-launcherd", isDirectory: false)
+            .appendingPathComponent("launchstationd", isDirectory: false)
         let applicationExecutable = fixtureApplicationURL
             .appendingPathComponent("Contents", isDirectory: true)
             .appendingPathComponent("MacOS", isDirectory: true)
-            .appendingPathComponent("CodexLauncher", isDirectory: false)
+            .appendingPathComponent("LaunchStation", isDirectory: false)
 
         // The deliberately non-development version proves both packaged executable paths
         // read the enclosing app's Info.plist rather than a fixed service version.
@@ -49,7 +49,7 @@ final class LauncherRuntimeVersionTests: XCTestCase {
     }
 
     func testSourceBuildPathUsesDevelopmentFallback() {
-        let sourceBuildExecutable = URL(fileURLWithPath: "/tmp/codex-launcher/.build/debug/codex-launcherd")
+        let sourceBuildExecutable = URL(fileURLWithPath: "/tmp/launchstation/.build/debug/launchstationd")
         XCTAssertEqual(
             LauncherRuntimeVersion.version(forExecutableURL: sourceBuildExecutable),
             LauncherRuntimeVersion.developmentFallback

@@ -3,16 +3,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "CodexLauncher",
+    name: "LaunchStation",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .library(name: "LauncherCore", targets: ["LauncherCore"]),
         .executable(name: "launch", targets: ["LaunchCLI"]),
-        .executable(name: "codex-launcherd", targets: ["LauncherDaemon"]),
-        .executable(name: "codex-launcher-runner", targets: ["LauncherRunner"]),
-        .executable(name: "CodexLauncher", targets: ["CodexLauncherApp"])
+        .executable(name: "launchstationd", targets: ["LauncherDaemon"]),
+        .executable(name: "launchstation-runner", targets: ["LauncherRunner"]),
+        .executable(name: "LaunchStation", targets: ["LaunchStationApp"])
     ],
     targets: [
         .target(
@@ -34,7 +34,7 @@ let package = Package(
             dependencies: ["LauncherCore"]
         ),
         .executableTarget(
-            name: "CodexLauncherApp",
+            name: "LaunchStationApp",
             dependencies: ["LauncherCore"]
         ),
         .testTarget(

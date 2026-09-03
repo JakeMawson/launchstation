@@ -1,17 +1,17 @@
 #!/bin/zsh
 set -euo pipefail
 
-: "${CODEX_LAUNCHER_FAKE_SIM_LOG:?Set CODEX_LAUNCHER_FAKE_SIM_LOG}"
+: "${LAUNCH_STATION_FAKE_SIM_LOG:?Set LAUNCH_STATION_FAKE_SIM_LOG}"
 quoted=()
 for argument in "$@"; do
   quoted+=("${(q)argument}")
 done
-print -r -- "${(j: :)quoted}" >> "$CODEX_LAUNCHER_FAKE_SIM_LOG"
+print -r -- "${(j: :)quoted}" >> "$LAUNCH_STATION_FAKE_SIM_LOG"
 
 if [[ "$*" == "simctl list devices available --json" ]]; then
   mode=normal
-  if [[ -n "${CODEX_LAUNCHER_FAKE_SIM_MODE_FILE:-}" && -f "$CODEX_LAUNCHER_FAKE_SIM_MODE_FILE" ]]; then
-    mode="$(<"$CODEX_LAUNCHER_FAKE_SIM_MODE_FILE")"
+  if [[ -n "${LAUNCH_STATION_FAKE_SIM_MODE_FILE:-}" && -f "$LAUNCH_STATION_FAKE_SIM_MODE_FILE" ]]; then
+    mode="$(<"$LAUNCH_STATION_FAKE_SIM_MODE_FILE")"
   fi
   if [[ "$mode" == large ]]; then
     exec /usr/bin/python3 - <<'PY'
@@ -22,9 +22,9 @@ print('{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-5":[{"udid":"FAKE-
 PY
   fi
   if [[ "$mode" == hang-descendant ]]; then
-    : "${CODEX_LAUNCHER_FAKE_SIM_PARENT_PID:?Set CODEX_LAUNCHER_FAKE_SIM_PARENT_PID}"
-    : "${CODEX_LAUNCHER_FAKE_SIM_CHILD_PID:?Set CODEX_LAUNCHER_FAKE_SIM_CHILD_PID}"
-    exec /usr/bin/python3 - "$CODEX_LAUNCHER_FAKE_SIM_PARENT_PID" "$CODEX_LAUNCHER_FAKE_SIM_CHILD_PID" <<'PY'
+    : "${LAUNCH_STATION_FAKE_SIM_PARENT_PID:?Set LAUNCH_STATION_FAKE_SIM_PARENT_PID}"
+    : "${LAUNCH_STATION_FAKE_SIM_CHILD_PID:?Set LAUNCH_STATION_FAKE_SIM_CHILD_PID}"
+    exec /usr/bin/python3 - "$LAUNCH_STATION_FAKE_SIM_PARENT_PID" "$LAUNCH_STATION_FAKE_SIM_CHILD_PID" <<'PY'
 import os
 from pathlib import Path
 import signal

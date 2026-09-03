@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-LAUNCH="${LAUNCH_BINARY:-$ROOT/dist/Codex Launcher.app/Contents/Resources/bin/launch}"
-PROJECT="${CODEX_LAUNCHER_UI_PROJECT:-/tmp/codex-launcher-uiqa-project-20260717}"
+LAUNCH="${LAUNCH_BINARY:-$ROOT/dist/Launch Station.app/Contents/Resources/bin/launch}"
+PROJECT="${LAUNCH_STATION_UI_PROJECT:-/tmp/launchstation-uiqa-project-20260717}"
 
-: "${CODEX_LAUNCHER_STATE_DIR:?Set CODEX_LAUNCHER_STATE_DIR for the UI QA daemon}"
-export CODEX_LAUNCHER_STATE_DIR
+: "${LAUNCH_STATION_STATE_DIR:?Set LAUNCH_STATION_STATE_DIR for the UI QA daemon}"
+export LAUNCH_STATION_STATE_DIR
 mkdir -p "$PROJECT"
 
 "$LAUNCH" init "$PROJECT" --project-name "Launch Systems Lab"

@@ -4,11 +4,11 @@ set -euo pipefail
 umask 022
 
 ROOT="${0:A:h:h}"
-LABEL="com.jakemawson.codex-launcher.service"
-LAUNCH_AGENT_TEMPLATE="$ROOT/Resources/com.jakemawson.codex-launcher.service.plist"
-EXPECTED_BUNDLE_ID="com.jakemawson.codex-launcher"
+LABEL="com.jakemawson.launchstation.service"
+LAUNCH_AGENT_TEMPLATE="$ROOT/Resources/com.jakemawson.launchstation.service.plist"
+EXPECTED_BUNDLE_ID="com.jakemawson.launchstation"
 EXPECTED_PATH="$HOME/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
-TEMPLATE_PROGRAM="/Applications/Codex Launcher.app/Contents/Helpers/codex-launcherd"
+TEMPLATE_PROGRAM="/Applications/Launch Station.app/Contents/Helpers/launchstationd"
 RELEASE_VERIFIER="$ROOT/scripts/verify-release-app.sh"
 RELEASE_TRUST_POLICY="$ROOT/Resources/ReleaseTrustPolicy.plist"
 RELEASE_POLICY_LIBRARY="$ROOT/scripts/release-trust-policy.zsh"
@@ -143,9 +143,9 @@ select_destination() {
     fi
     candidate="$DESTINATION_ARGUMENT"
   elif [[ -d "/Applications" && ! -L "/Applications" && -w "/Applications" ]]; then
-    candidate="/Applications/Codex Launcher.app"
+    candidate="/Applications/Launch Station.app"
   else
-    candidate="$HOME/Applications/Codex Launcher.app"
+    candidate="$HOME/Applications/Launch Station.app"
     DESTINATION_PARENT_NEEDS_CREATION=1
   fi
 
@@ -156,7 +156,7 @@ select_destination() {
   fi
   DEST_PARENT="${DEST_APP:h}"
   CLI_TARGET="$DEST_APP/Contents/Resources/bin/launch"
-  EXPECTED_PROGRAM="$DEST_APP/Contents/Helpers/codex-launcherd"
+  EXPECTED_PROGRAM="$DEST_APP/Contents/Helpers/launchstationd"
 }
 
 path_identity() {
@@ -283,18 +283,18 @@ validate_app_bundle() {
   require_real_directory "$app/Contents/Resources" "Application resources directory"
   require_real_directory "$app/Contents/Resources/bin" "Application CLI directory"
   require_real_directory "$app/Contents/Resources/Skills" "Application skills directory"
-  require_real_directory "$app/Contents/Resources/Skills/codex-launcher" "Bundled skill directory"
-  require_real_directory "$app/Contents/Resources/Skills/codex-launcher/agents" "Bundled skill agents directory"
+  require_real_directory "$app/Contents/Resources/Skills/launchstation" "Bundled skill directory"
+  require_real_directory "$app/Contents/Resources/Skills/launchstation/agents" "Bundled skill agents directory"
 
   require_regular_file "$app/Contents/Info.plist" "Application Info.plist"
-  require_executable_file "$app/Contents/MacOS/CodexLauncher" "Application executable"
-  require_executable_file "$app/Contents/Helpers/codex-launcherd" "Daemon executable"
-  require_executable_file "$app/Contents/Helpers/codex-launcher-runner" "Process runner executable"
+  require_executable_file "$app/Contents/MacOS/LaunchStation" "Application executable"
+  require_executable_file "$app/Contents/Helpers/launchstationd" "Daemon executable"
+  require_executable_file "$app/Contents/Helpers/launchstation-runner" "Process runner executable"
   require_executable_file "$app/Contents/Resources/bin/launch" "CLI executable"
   require_regular_file "$app/Contents/Resources/ReleaseTrustPolicy.plist" "Signed release trust policy"
-  require_regular_file "$app/Contents/Resources/Skills/codex-launcher/SKILL.md" "Bundled skill"
-  require_regular_file "$app/Contents/Resources/Skills/codex-launcher/VERSION" "Bundled skill version"
-  require_regular_file "$app/Contents/Resources/Skills/codex-launcher/agents/openai.yaml" "Bundled skill metadata"
+  require_regular_file "$app/Contents/Resources/Skills/launchstation/SKILL.md" "Bundled skill"
+  require_regular_file "$app/Contents/Resources/Skills/launchstation/VERSION" "Bundled skill version"
+  require_regular_file "$app/Contents/Resources/Skills/launchstation/agents/openai.yaml" "Bundled skill metadata"
 
   bundle_id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$app/Contents/Info.plist" 2>/dev/null) || \
     fail "Application bundle identifier could not be read: $app"
@@ -304,19 +304,19 @@ validate_app_bundle() {
 
   app_version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist" 2>/dev/null) || \
     fail "Application version could not be read: $app"
-  skill_version=$(/usr/bin/tr -d '[:space:]' < "$app/Contents/Resources/Skills/codex-launcher/VERSION") || \
+  skill_version=$(/usr/bin/tr -d '[:space:]' < "$app/Contents/Resources/Skills/launchstation/VERSION") || \
     fail "Bundled skill version could not be read: $app"
   if [[ -z "$app_version" || "$skill_version" != "$app_version" ]]; then
     fail "Bundled skill version must match application version $app_version, found $skill_version"
   fi
-  if [[ "$(/usr/bin/sed -n '1p' "$app/Contents/Resources/Skills/codex-launcher/SKILL.md")" != "---" ]]; then
+  if [[ "$(/usr/bin/sed -n '1p' "$app/Contents/Resources/Skills/launchstation/SKILL.md")" != "---" ]]; then
     fail "Bundled SKILL.md is missing YAML frontmatter: $app"
   fi
-  /usr/bin/grep -qx 'name: codex-launcher' "$app/Contents/Resources/Skills/codex-launcher/SKILL.md" || \
+  /usr/bin/grep -qx 'name: launchstation' "$app/Contents/Resources/Skills/launchstation/SKILL.md" || \
     fail "Bundled SKILL.md has the wrong skill name: $app"
-  /usr/bin/grep -q '^description: .\+' "$app/Contents/Resources/Skills/codex-launcher/SKILL.md" || \
+  /usr/bin/grep -q '^description: .\+' "$app/Contents/Resources/Skills/launchstation/SKILL.md" || \
     fail "Bundled SKILL.md is missing its description: $app"
-  /usr/bin/grep -qx 'interface:' "$app/Contents/Resources/Skills/codex-launcher/agents/openai.yaml" || \
+  /usr/bin/grep -qx 'interface:' "$app/Contents/Resources/Skills/launchstation/agents/openai.yaml" || \
     fail "Bundled skill metadata is missing interface metadata: $app"
 
   /usr/bin/codesign --verify --deep --strict "$app" || \
@@ -458,14 +458,14 @@ if [[ "$HOME_OWNER_UID" != "$CURRENT_UID" ]]; then
 fi
 require_real_directory "$HOME/Library" "User Library directory"
 
-SOURCE_APP="${SOURCE_APP_ARGUMENT:-$ROOT/dist/release/Codex Launcher.app}"
+SOURCE_APP="${SOURCE_APP_ARGUMENT:-$ROOT/dist/release/Launch Station.app}"
 SOURCE_APP="${SOURCE_APP:a}"
 DOMAIN="gui/$CURRENT_UID"
 LAUNCH_AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
 CLI_LINK="$HOME/bin/launch"
-STATE_DIR="$HOME/Library/Application Support/Codex Launcher"
+STATE_DIR="$HOME/Library/Application Support/Launch Station"
 RUNS_DIR="$STATE_DIR/Runs"
-LOG_DIR="$HOME/Library/Logs/Codex Launcher"
+LOG_DIR="$HOME/Library/Logs/Launch Station"
 EXPECTED_PATH="$HOME/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 EXPECTED_STDOUT="$LOG_DIR/service.log"
 EXPECTED_STDERR="$LOG_DIR/service-error.log"
@@ -501,9 +501,9 @@ require_no_symlink_chain "$LAUNCH_AGENT_TEMPLATE" "LaunchAgent template path"
 validate_launch_agent \
   "$LAUNCH_AGENT_TEMPLATE" \
   "$TEMPLATE_PROGRAM" \
-  '__CODEX_LAUNCHER_HOME__/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin' \
-  '__CODEX_LAUNCHER_HOME__/Library/Logs/Codex Launcher/service.log' \
-  '__CODEX_LAUNCHER_HOME__/Library/Logs/Codex Launcher/service-error.log'
+  '__LAUNCH_STATION_HOME__/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin' \
+  '__LAUNCH_STATION_HOME__/Library/Logs/Launch Station/service.log' \
+  '__LAUNCH_STATION_HOME__/Library/Logs/Launch Station/service-error.log'
 
 trap rollback_install EXIT
 trap 'exit 130' INT
@@ -594,5 +594,5 @@ wait_for_fresh_service_health "$source_version"
 INSTALL_COMPLETE=1
 trap - EXIT INT TERM
 
-print -- "Installed Codex Launcher.app, launch CLI, and user LaunchAgent."
+print -- "Installed Launch Station.app, launch CLI, and user LaunchAgent."
 print -- "Open $DEST_APP or run: launch list"

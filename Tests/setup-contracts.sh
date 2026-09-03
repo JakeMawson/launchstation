@@ -9,6 +9,7 @@ VERIFIER="$ROOT/scripts/verify-release-app.sh"
 VERIFIER_CORE="$ROOT/scripts/release-verifier-core.zsh"
 VERIFIER_FIXTURE="$ROOT/Tests/verify-release-app-fixture.zsh"
 POLICY_LIBRARY="$ROOT/scripts/release-trust-policy.zsh"
+HOMEBREW_SETUP="$ROOT/scripts/configure-homebrew-user.sh"
 TRUST_POLICY="$ROOT/Resources/ReleaseTrustPolicy.plist"
 MOCK_CODESIGN="$ROOT/Tests/fixtures/mock-release-codesign.sh"
 MOCK_SPCTL="$ROOT/Tests/fixtures/mock-release-spctl.sh"
@@ -26,7 +27,7 @@ cleanup() {
   local exit_status=$?
   trap - EXIT INT TERM
   if [[ -n "$ARTIFACTS" && -d "$ARTIFACTS" && ! -L "$ARTIFACTS" ]]; then
-    if [[ "${CODEX_LAUNCHER_KEEP_SETUP_CONTRACT_ARTIFACTS:-0}" == 1 ]]; then
+    if [[ "${LAUNCH_STATION_KEEP_SETUP_CONTRACT_ARTIFACTS:-0}" == 1 ]]; then
       print -u2 -- "Retained setup-contract artifacts: $ARTIFACTS"
     else
       /bin/rm -rf -- "$ARTIFACTS"
@@ -104,7 +105,7 @@ expect_command_rejected() {
   (( exit_status != 0 )) || fail "$description was accepted"
 }
 
-for script in "$PACKAGE" "$INSTALLER" "$UPGRADER" "$VERIFIER" "$VERIFIER_CORE" "$VERIFIER_FIXTURE" "$POLICY_LIBRARY" "$MOCK_CODESIGN" "$MOCK_SPCTL"; do
+for script in "$PACKAGE" "$INSTALLER" "$UPGRADER" "$VERIFIER" "$VERIFIER_CORE" "$VERIFIER_FIXTURE" "$POLICY_LIBRARY" "$HOMEBREW_SETUP" "$MOCK_CODESIGN" "$MOCK_SPCTL"; do
   require_regular_file "$script"
   /bin/zsh -n "$script" || fail "shell syntax check failed: $script"
 done
@@ -135,6 +136,23 @@ require_match "$PACKAGE" 'verify-release-app[.]sh' \
   'release packaging does not invoke the shared release verifier'
 require_match "$PACKAGE" 'BuildProvenance[.]plist' \
   'package script does not emit release build provenance'
+require_match "$PACKAGE" 'configure-launch-station' \
+  'package script does not bundle the Homebrew user setup helper'
+require_match "$PACKAGE" 'LaunchStationLaunchAgent[.]plist' \
+  'package script does not bundle the LaunchAgent template'
+
+# Homebrew installation may configure the app/service contract, but it must never
+# mutate or remove the launcher catalogue during install, upgrade, or uninstall.
+require_match "$HOMEBREW_SETUP" 'LAUNCH_STATION_SETUP_MODE.*verify-only' \
+  'Homebrew setup helper has no isolated verification mode'
+require_match "$HOMEBREW_SETUP" 'Existing launcher data was not modified|Launcher data was preserved' \
+  'Homebrew setup helper does not state its data-preservation contract'
+require_no_match "$HOMEBREW_SETUP" 'launcher[.]sqlite3|sqlite3|\.backup|VACUUM|DELETE FROM|DROP TABLE' \
+  'Homebrew setup helper may access the launcher database'
+require_no_match "$HOMEBREW_SETUP" 'rm[^\n]*(Application Support|STATE_DIRECTORY|LOG_DIRECTORY)' \
+  'Homebrew setup helper may remove application data or logs'
+require_match "$HOMEBREW_SETUP" 'job_is_loaded.*&&.*fail|job_is_loaded.*fail' \
+  'Homebrew setup helper does not refuse an active mismatched service contract'
 
 # The public verifier has no caller-controlled tool/policy override; test doubles
 # are reachable only through the harness stored under Tests/.
@@ -245,13 +263,13 @@ require_before "$UPGRADER" '"\$SWAP_BINARY" swap "\$STAGED_APP" "\$DEST_APP"' \
   'upgrader must verify the final installed replacement after the atomic swap'
 require_match "$UPGRADER" 'ProgramArguments[.]0' \
   'upgrader does not derive the installed app from the LaunchAgent contract'
-require_match "$UPGRADER" 'Contents/Helpers/codex-launcherd' \
+require_match "$UPGRADER" 'Contents/Helpers/launchstationd' \
   'upgrader does not validate the exact daemon helper suffix'
 require_match "$UPGRADER" 'CURRENT_APP_OWNER_UID' \
   'upgrader does not identify a root-owned legacy application'
-require_match "$UPGRADER" 'CURRENT_APP.*==.*"/Applications/Codex Launcher[.]app"' \
+require_match "$UPGRADER" 'CURRENT_APP.*==.*"/Applications/Launch Station[.]app"' \
   'upgrader does not restrict legacy relocation to the canonical system Applications path'
-require_match "$UPGRADER" 'DEST_APP=.*HOME/Applications/Codex Launcher[.]app' \
+require_match "$UPGRADER" 'DEST_APP=.*HOME/Applications/Launch Station[.]app' \
   'upgrader has no per-user destination for a root-owned legacy application'
 require_match "$UPGRADER" '"\$SWAP_BINARY" install "\$STAGED_APP" "\$DEST_APP"' \
   'upgrader does not atomically install the relocated replacement without replacing the legacy app'
@@ -269,16 +287,16 @@ require_match "$UPGRADER" 'reconciled_cli_link_transition_state' \
   'upgrader does not reconcile CLI-link state after an interruptible atomic transition'
 require_before "$UPGRADER" 'app_transition_started=1' '"\$SWAP_BINARY" install "\$STAGED_APP" "\$DEST_APP"' \
   'relocated app transition intent must be recorded before its atomic install'
-require_before "$UPGRADER" 'launch_agent_transition_started=1' 'verify_launch_agent_contract "\$LAUNCH_AGENT" "\$DEST_APP/Contents/Helpers/codex-launcherd"' \
+require_before "$UPGRADER" 'launch_agent_transition_started=1' 'verify_launch_agent_contract "\$LAUNCH_AGENT" "\$DEST_APP/Contents/Helpers/launchstationd"' \
   'LaunchAgent transition intent must be recorded before validating its forward replacement'
 require_before "$UPGRADER" 'cli_link_transition_started=1' 'retarget_cli_link "\$previous_cli_target" "\$INSTALLED_CLI"' \
   'CLI-link transition intent must be recorded before retargeting'
 
 # The daemon may be installed outside /Applications, so its runner must follow the
 # daemon/app bundle it actually started from rather than a global fixed bundle path.
-require_no_match "$PROCESS_SUPERVISOR" '/Applications/Codex Launcher[.]app' \
+require_no_match "$PROCESS_SUPERVISOR" '/Applications/Launch Station[.]app' \
   'ProcessSupervisor still hard-codes the system Applications bundle path'
-require_match "$PROCESS_SUPERVISOR" 'Contents/Helpers/codex-launcher-runner' \
+require_match "$PROCESS_SUPERVISOR" 'Contents/Helpers/launchstation-runner' \
   'ProcessSupervisor does not derive the runner from an enclosing app bundle'
 require_match "$PROCESS_SUPERVISOR" 'Bundle[.]main[.]executableURL' \
   'ProcessSupervisor does not use its running daemon bundle as a runner candidate'
@@ -286,13 +304,13 @@ require_match "$PROCESS_SUPERVISOR" 'pathExtension[.]lowercased\(\)[[:space:]]*=
   'ProcessSupervisor does not walk from the daemon executable to its enclosing app bundle'
 
 # Exercise the verifier against a throwaway app and test-only signing/Gatekeeper doubles.
-ARTIFACTS=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/codex-launcher-setup-contracts.XXXXXX")
+ARTIFACTS=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/launchstation-setup-contracts.XXXXXX")
 # macOS commonly exposes TMPDIR through /var, which is itself a system symlink to
 # /private/var. The release-policy loader deliberately rejects *any* symlink path
 # component, so canonicalize this test-only throwaway directory before passing its
 # policy file to the real verifier core.
 ARTIFACTS="$(cd -P -- "$ARTIFACTS" && /bin/pwd)"
-APP="$ARTIFACTS/Codex Launcher.app"
+APP="$ARTIFACTS/Launch Station.app"
 TEST_CODESIGN="$ARTIFACTS/mock-codesign"
 TEST_SPCTL="$ARTIFACTS/mock-spctl"
 TEST_POLICY="$ARTIFACTS/release-trust-policy.plist"

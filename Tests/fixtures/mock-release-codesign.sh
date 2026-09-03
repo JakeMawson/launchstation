@@ -26,7 +26,7 @@ if (( $# == 3 )) \
   case "${MOCK_RELEASE_SIGNATURE:-trusted}" in
     trusted)
       print -u2 -- 'Authority=Developer ID Application: Example Publisher (ABCDE12345)'
-      print -u2 -- 'Identifier=com.jakemawson.codex-launcher'
+      print -u2 -- 'Identifier=com.jakemawson.launchstation'
       print -u2 -- 'TeamIdentifier=ABCDE12345'
       print -u2 -- 'flags=0x10000(runtime)'
       print -u2 -- 'Timestamp=Jul 18, 2026 at 10:00:00 AM'
@@ -34,7 +34,7 @@ if (( $# == 3 )) \
       ;;
     trusted-no-timestamp)
       print -u2 -- 'Authority=Developer ID Application: Example Publisher (ABCDE12345)'
-      print -u2 -- 'Identifier=com.jakemawson.codex-launcher'
+      print -u2 -- 'Identifier=com.jakemawson.launchstation'
       print -u2 -- 'TeamIdentifier=ABCDE12345'
       print -u2 -- 'flags=0x10000(runtime)'
       print -u2 -- 'Timestamp=none'
@@ -46,7 +46,7 @@ if (( $# == 3 )) \
       ;;
     development)
       print -u2 -- 'Authority=Apple Development: Example Publisher (ABCDE12345)'
-      print -u2 -- 'Identifier=com.jakemawson.codex-launcher'
+      print -u2 -- 'Identifier=com.jakemawson.launchstation'
       print -u2 -- 'TeamIdentifier=ABCDE12345'
       print -u2 -- 'flags=0x10000(runtime)'
       print -u2 -- 'Timestamp=Jul 18, 2026 at 10:00:00 AM'

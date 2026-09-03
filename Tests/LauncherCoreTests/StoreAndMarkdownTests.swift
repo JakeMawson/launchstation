@@ -16,6 +16,7 @@ final class StoreAndMarkdownTests: XCTestCase {
         }
 
         XCTAssertNil(LauncherCompatibility.incompatibilityReason(for: status(version: "1.2.0")))
+        XCTAssertNil(LauncherCompatibility.incompatibilityReason(for: status(version: "1.3.0")))
         XCTAssertNil(LauncherCompatibility.incompatibilityReason(for: status(version: "1.4.2")))
         XCTAssertNotNil(LauncherCompatibility.incompatibilityReason(for: status(version: "1.1.0")))
         XCTAssertNotNil(LauncherCompatibility.incompatibilityReason(for: status(version: "not-a-version")))
@@ -241,7 +242,7 @@ final class StoreAndMarkdownTests: XCTestCase {
 
     func testSchemaOneMigrationDefaultsLegacySessionsToPrimaryAndAddsUniqueness() throws {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-MigrationTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-MigrationTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let projectDirectory = root.appendingPathComponent("project", isDirectory: true)
         let stateDirectory = root.appendingPathComponent("state", isDirectory: true)
@@ -273,7 +274,7 @@ final class StoreAndMarkdownTests: XCTestCase {
 
     func testSchemaOneMigrationRefusesAmbiguousMultipleActiveSessions() throws {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-MigrationPreflightTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-MigrationPreflightTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let projectDirectory = root.appendingPathComponent("project", isDirectory: true)
         let stateDirectory = root.appendingPathComponent("state", isDirectory: true)
@@ -433,7 +434,7 @@ final class StoreAndMarkdownTests: XCTestCase {
         XCTAssertThrowsError(try LauncherValidation.validateLauncher(launcher, project: project)) { error in
             XCTAssertEqual(
                 error as? LauncherValidationError,
-                .invalidAction("action names must map to unique linked environment tokens; CODEX_LAUNCHER_ACTION_API_V2 collides")
+                .invalidAction("action names must map to unique linked environment tokens; LAUNCH_STATION_ACTION_API_V2 collides")
             )
         }
     }
@@ -459,7 +460,7 @@ final class StoreAndMarkdownTests: XCTestCase {
             order: 1,
             runner: .process,
             executable: "/usr/bin/true",
-            environment: ["API_URL": "${CODEX_LAUNCHER_ACTION_API_URL}"]
+            environment: ["API_URL": "${LAUNCH_STATION_ACTION_API_URL}"]
         )
         var launcher = LauncherRecord(
             projectID: project.id,
@@ -477,27 +478,27 @@ final class StoreAndMarkdownTests: XCTestCase {
         XCTAssertThrowsError(try LauncherValidation.validateLauncher(launcher, project: project)) { error in
             XCTAssertEqual(
                 error as? LauncherValidationError,
-                .invalidAction("CODEX_LAUNCHER_ACTION_API_URL must name a HOST, PORT, or URL value exposed by an earlier action")
+                .invalidAction("LAUNCH_STATION_ACTION_API_URL must name a HOST, PORT, or URL value exposed by an earlier action")
             )
         }
 
         provider.order = 0
-        consumer.environment = ["API_URL": "${CODEX_LAUNCHER_ACTION_AP1_URL}"]
+        consumer.environment = ["API_URL": "${LAUNCH_STATION_ACTION_AP1_URL}"]
         launcher.actions = [provider, consumer]
         XCTAssertThrowsError(try LauncherValidation.validateLauncher(launcher, project: project)) { error in
             XCTAssertEqual(
                 error as? LauncherValidationError,
-                .invalidAction("CODEX_LAUNCHER_ACTION_AP1_URL must name a HOST, PORT, or URL value exposed by an earlier action")
+                .invalidAction("LAUNCH_STATION_ACTION_AP1_URL must name a HOST, PORT, or URL value exposed by an earlier action")
             )
         }
 
         provider.required = false
-        consumer.environment = ["API_URL": "${CODEX_LAUNCHER_ACTION_API_URL}"]
+        consumer.environment = ["API_URL": "${LAUNCH_STATION_ACTION_API_URL}"]
         launcher.actions = [provider, consumer]
         XCTAssertThrowsError(try LauncherValidation.validateLauncher(launcher, project: project)) { error in
             XCTAssertEqual(
                 error as? LauncherValidationError,
-                .invalidAction("CODEX_LAUNCHER_ACTION_API_URL references optional action api; linked providers must be required")
+                .invalidAction("LAUNCH_STATION_ACTION_API_URL references optional action api; linked providers must be required")
             )
         }
     }
@@ -519,7 +520,7 @@ final class StoreAndMarkdownTests: XCTestCase {
             order: 1,
             runner: .process,
             executable: "/usr/bin/true",
-            environment: ["GUIDE_URL": "${CODEX_LAUNCHER_ACTION_GUIDE_URL}"]
+            environment: ["GUIDE_URL": "${LAUNCH_STATION_ACTION_GUIDE_URL}"]
         )
         let launcher = LauncherRecord(
             projectID: project.id,
@@ -533,7 +534,7 @@ final class StoreAndMarkdownTests: XCTestCase {
         XCTAssertThrowsError(try LauncherValidation.validateLauncher(launcher, project: project)) { error in
             XCTAssertEqual(
                 error as? LauncherValidationError,
-                .invalidAction("CODEX_LAUNCHER_ACTION_GUIDE_URL must name a HOST, PORT, or URL value exposed by an earlier action")
+                .invalidAction("LAUNCH_STATION_ACTION_GUIDE_URL must name a HOST, PORT, or URL value exposed by an earlier action")
             )
         }
     }
@@ -562,11 +563,11 @@ final class StoreAndMarkdownTests: XCTestCase {
             )
         }
 
-        action.environment = ["CODEX_LAUNCHER_ACTION_API_URL": "spoofed"]
+        action.environment = ["LAUNCH_STATION_ACTION_API_URL": "spoofed"]
         XCTAssertThrowsError(try LauncherValidation.validateAction(action, project: project)) { error in
             XCTAssertEqual(
                 error as? LauncherValidationError,
-                .invalidAction("CODEX_LAUNCHER_ACTION_API_URL is reserved for values from earlier compound actions")
+                .invalidAction("LAUNCH_STATION_ACTION_API_URL is reserved for values from earlier compound actions")
             )
         }
 
@@ -574,7 +575,7 @@ final class StoreAndMarkdownTests: XCTestCase {
         action.name = "API service"
         XCTAssertEqual(
             LauncherValidation.linkedActionEnvironmentBase(for: action),
-            "CODEX_LAUNCHER_ACTION_API_SERVICE"
+            "LAUNCH_STATION_ACTION_API_SERVICE"
         )
     }
 
@@ -701,7 +702,7 @@ final class StoreAndMarkdownTests: XCTestCase {
 
     func testManifestWriteDoesNotCreateAMissingProjectDirectory() throws {
         let missingDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-MissingProject", isDirectory: true)
+            .appendingPathComponent("LaunchStation-MissingProject", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let project = ProjectRecord(displayName: "Missing", directory: missingDirectory.path)
 
@@ -755,7 +756,7 @@ final class StoreAndMarkdownTests: XCTestCase {
 
     private func makeFixture() throws -> Fixture {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-StoreTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-StoreTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let projectDirectory = root.appendingPathComponent("project", isDirectory: true)
         let stateDirectory = root.appendingPathComponent("state", isDirectory: true)

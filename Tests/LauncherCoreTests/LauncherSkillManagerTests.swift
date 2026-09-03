@@ -9,14 +9,14 @@ final class LauncherSkillManagerTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let skill = repositoryRoot.appendingPathComponent("Skills/codex-launcher", isDirectory: true)
+        let skill = repositoryRoot.appendingPathComponent("Skills/launchstation", isDirectory: true)
         let markdown = try String(contentsOf: skill.appendingPathComponent("SKILL.md"), encoding: .utf8)
         let metadata = try String(contentsOf: skill.appendingPathComponent("agents/openai.yaml"), encoding: .utf8)
         let version = try String(contentsOf: skill.appendingPathComponent("VERSION"), encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         XCTAssertTrue(markdown.hasPrefix("---\n"))
-        XCTAssertTrue(markdown.contains("\nname: codex-launcher\n"))
+        XCTAssertTrue(markdown.contains("\nname: launchstation\n"))
         XCTAssertTrue(markdown.contains("\ndescription: "))
         XCTAssertTrue(markdown.contains("\n---\n\n# Launch Station"))
         XCTAssertTrue(metadata.contains("interface:"))
@@ -442,7 +442,7 @@ final class LauncherSkillManagerTests: XCTestCase {
         XCTAssertEqual(attributes.st_mode & 0o7777, 0o600)
         XCTAssertEqual(attributes.st_nlink, 1)
         XCTAssertEqual(firstReceipt.schemaVersion, 1)
-        XCTAssertEqual(firstReceipt.managerID, "com.jakemawson.codex-launcher")
+        XCTAssertEqual(firstReceipt.managerID, "com.jakemawson.launchstation")
         XCTAssertEqual(firstReceipt.host, .codex)
         XCTAssertEqual(firstReceipt.destinationPath, target.path)
         XCTAssertEqual(firstReceipt.skillVersion, LauncherSkillManager.version)
@@ -636,7 +636,7 @@ final class LauncherSkillManagerTests: XCTestCase {
         let source = try fixture.manager.source()
 
         XCTAssertEqual(source.fileName, "SKILL.md")
-        XCTAssertEqual(source.skillName, "codex-launcher")
+        XCTAssertEqual(source.skillName, "launchstation")
         XCTAssertEqual(source.version, LauncherSkillManager.version)
         XCTAssertEqual(
             source.contents,
@@ -646,7 +646,7 @@ final class LauncherSkillManagerTests: XCTestCase {
 
     private func makeFixture(codexDetected: Bool, claudeDetected: Bool) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-SkillTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-SkillTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let source = root.appendingPathComponent("source", isDirectory: true)
         let home = root.appendingPathComponent("home", isDirectory: true)
@@ -654,7 +654,7 @@ final class LauncherSkillManagerTests: XCTestCase {
         try FileManager.default.createDirectory(at: source.appendingPathComponent("agents"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: detection, withIntermediateDirectories: true)
-        try "---\nname: codex-launcher\ndescription: Test fixture.\n---\n\n# Fixture\n"
+        try "---\nname: launchstation\ndescription: Test fixture.\n---\n\n# Fixture\n"
             .write(to: source.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
         try "interface:\n  display_name: \"Launch Station\"\n"
             .write(to: source.appendingPathComponent("agents/openai.yaml"), atomically: true, encoding: .utf8)

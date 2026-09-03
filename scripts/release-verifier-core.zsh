@@ -31,7 +31,7 @@ release_verifier_verify() {
   local spctl_tool="$4"
   local policy_library="$5"
   local mode="$6"
-  local expected_bundle_id="com.jakemawson.codex-launcher"
+  local expected_bundle_id="com.jakemawson.launchstation"
   local symlink info_plist provenance_plist bundled_policy
   local bundle_id bundle_version provenance_mode provenance_version provenance_team
   local provenance_publisher provenance_identity expected_authority signature_info

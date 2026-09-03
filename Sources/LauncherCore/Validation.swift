@@ -23,7 +23,7 @@ public enum LauncherValidationError: LocalizedError, Equatable {
 }
 
 public enum LauncherValidation {
-    public static let linkedActionEnvironmentPrefix = "CODEX_LAUNCHER_ACTION_"
+    public static let linkedActionEnvironmentPrefix = "LAUNCH_STATION_ACTION_"
     public static let reservedNames: Set<String> = [
         ".", "..",
         "init", "create", "run", "list", "details", "retrieve", "update", "delete",
@@ -174,7 +174,7 @@ public enum LauncherValidation {
 
     private static func linkedReferences(in values: [String]) -> Set<String> {
         let expression = try! NSRegularExpression(
-            pattern: #"\$\{(CODEX_LAUNCHER_ACTION_[A-Za-z0-9_]+)\}"#
+            pattern: #"\$\{(LAUNCH_STATION_ACTION_[A-Za-z0-9_]+)\}"#
         )
         var references = Set<String>()
         for value in values {
@@ -417,6 +417,8 @@ public enum LauncherValidation {
 }
 
 public enum LauncherCompatibility {
+    // Keep one release of daemon compatibility so the renamed GUI can connect
+    // during a controlled in-place upgrade without interrupting live sessions.
     public static let minimumServiceVersion = "1.2.0"
 
     public static func incompatibilityReason(for status: ServiceStatus) -> String? {

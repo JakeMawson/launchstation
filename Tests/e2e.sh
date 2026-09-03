@@ -4,11 +4,11 @@ setopt NO_BG_NICE
 
 ROOT="${0:A:h:h}"
 LAUNCH="${LAUNCH_BINARY:-$ROOT/.build/debug/launch}"
-STATE_DIR="${CODEX_LAUNCHER_STATE_DIR:?Set CODEX_LAUNCHER_STATE_DIR to the daemon test state directory}"
-STAMP="${CODEX_LAUNCHER_E2E_STAMP:-$(date +%s)}"
-PROJECT="${CODEX_LAUNCHER_E2E_PROJECT:-/tmp/codex-launcher-project-$STAMP}"
-ARTIFACTS="${CODEX_LAUNCHER_E2E_ARTIFACTS:-/tmp/codex-launcher-e2e-artifacts-$STAMP}"
-UNMANAGED_PROJECT="${CODEX_LAUNCHER_E2E_UNMANAGED_PROJECT:-/tmp/codex-launcher-unmanaged-project-$STAMP}"
+STATE_DIR="${LAUNCH_STATION_STATE_DIR:?Set LAUNCH_STATION_STATE_DIR to the daemon test state directory}"
+STAMP="${LAUNCH_STATION_E2E_STAMP:-$(date +%s)}"
+PROJECT="${LAUNCH_STATION_E2E_PROJECT:-/tmp/launchstation-project-$STAMP}"
+ARTIFACTS="${LAUNCH_STATION_E2E_ARTIFACTS:-/tmp/launchstation-e2e-artifacts-$STAMP}"
+UNMANAGED_PROJECT="${LAUNCH_STATION_E2E_UNMANAGED_PROJECT:-/tmp/launchstation-unmanaged-project-$STAMP}"
 WEB="launcher-web-$STAMP"
 NATURAL="launcher-natural-$STAMP"
 MUTABLE="launcher-mutable-$STAMP"
@@ -18,7 +18,7 @@ RELAUNCHARGS="launcher-relaunch-args-$STAMP"
 RACE="launcher-close-race-$STAMP"
 ENCODED="launcher-literal-%2F-$STAMP"
 
-export CODEX_LAUNCHER_STATE_DIR="$STATE_DIR"
+export LAUNCH_STATION_STATE_DIR="$STATE_DIR"
 mkdir -p "$PROJECT" "$ARTIFACTS" "$UNMANAGED_PROJECT"
 
 web_started=0
@@ -101,7 +101,7 @@ set -e
 [[ "$(/usr/bin/plutil -extract launcher.name raw -o - "$ARTIFACTS/encoded-details.json")" == "$ENCODED" ]] || fail "literal percent-encoded launcher name was decoded twice"
 
 "$LAUNCH" action add "$WEB" companion "Long-running companion service" \
-  --env 'LINKED_MAIN_URL=${CODEX_LAUNCHER_ACTION_MAIN_URL}' \
+  --env 'LINKED_MAIN_URL=${LAUNCH_STATION_ACTION_MAIN_URL}' \
   -- /bin/sh -c 'echo "linked-main:$LINKED_MAIN_URL"; while :; do sleep 1; done' > "$ARTIFACTS/action-added.txt"
 "$LAUNCH" update "$WEB" --primary-action companion \
   --action-description "Selected companion action" > "$ARTIFACTS/primary-companion.txt"

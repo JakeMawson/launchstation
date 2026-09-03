@@ -4,16 +4,24 @@ Launch Station is a native macOS catalog and lifecycle manager for project launc
 
 The system is designed for commands such as `npm run dev`, Python servers, native `.app` bundles, Expo, iOS tooling, and compound projects with several ordered services.
 
+## Install
+
+```sh
+brew install --cask JakeMawson/tap/launchstation
+```
+
+The Homebrew cask installs the Apple-notarized **Launch Station.app**, the `launch` CLI, and its per-user LaunchAgent. Upgrades replace only the application bundle and installation contract; they never create, rewrite, migrate, reset, or remove `~/Library/Application Support/Launch Station/launcher.sqlite3`. Uninstalling the cask also preserves the launcher catalog. See [launchstation.net](https://launchstation.net) for the product overview.
+
 ## What is included
 
 | Component | Installed location | Responsibility |
 | --- | --- | --- |
-| SwiftUI app | `/Applications/Codex Launcher.app` when writable, otherwise `~/Applications/Codex Launcher.app` | Search, inspect, launch, close, monitor, open endpoints, and read logs |
+| SwiftUI app | `/Applications/Launch Station.app` when writable, otherwise `~/Applications/Launch Station.app` | Search, inspect, launch, close, monitor, open endpoints, and read logs |
 | CLI | `~/bin/launch` | Scriptable project, launcher, action, session, manifest, and API operations |
-| LaunchAgent daemon | `com.jakemawson.codex-launcher.service` | Sole database writer, API server, manifest generator, and lifecycle owner |
+| LaunchAgent daemon | `com.jakemawson.launchstation.service` | Sole database writer, API server, manifest generator, and lifecycle owner |
 | Process runner | Inside the app bundle | Creates an isolated process group and reports exact PID/birth identity |
-| Agent skill | Inside the app bundle | Canonical `codex-launcher` workflow installable for Codex or Claude Code, or exportable as `SKILL.md` |
-| SQLite catalog | `~/Library/Application Support/Codex Launcher/launcher.sqlite3` | Durable source of truth |
+| Agent skill | Inside the app bundle | Canonical `launchstation` workflow installable for Codex or Claude Code, or exportable as `SKILL.md` |
+| SQLite catalog | `~/Library/Application Support/Launch Station/launcher.sqlite3` | Durable source of truth |
 | Project mirror | `<project>/launch_details.md` | Deterministic, read-only agent reference generated from SQLite |
 
 The app and CLI never edit SQLite or `launch_details.md` directly. They send authenticated requests to the daemon over a loopback-only HTTP API.
@@ -34,9 +42,9 @@ There are no third-party Swift package dependencies. The project uses SwiftUI, A
 Build and run the unit tests:
 
 ```sh
-cd /path/to/Launcher
-env CLANG_MODULE_CACHE_PATH=/tmp/codex-launcher-clang-cache \
-  SWIFT_MODULE_CACHE_PATH=/tmp/codex-launcher-swift-cache \
+cd /path/to/launchstation
+env CLANG_MODULE_CACHE_PATH=/tmp/launch-station-clang-cache \
+  SWIFT_MODULE_CACHE_PATH=/tmp/launch-station-swift-cache \
   xcrun swift test --jobs 2
 ```
 
@@ -46,7 +54,7 @@ Create a local **development-only** bundle:
 scripts/package-app.sh --development
 ```
 
-The default output is `dist/development/Codex Launcher.app`. It has an explicit `BuildProvenance.plist` marking it as development-only and an ad-hoc signature for local testing. `scripts/install.sh`, `scripts/upgrade-installed-app.sh`, and `scripts/verify-release-app.sh` deliberately refuse it.
+The default output is `dist/development/Launch Station.app`. It has an explicit `BuildProvenance.plist` marking it as development-only and an ad-hoc signature for local testing. `scripts/install.sh`, `scripts/upgrade-installed-app.sh`, and `scripts/verify-release-app.sh` deliberately refuse it.
 
 For a local rebuild without overwriting a prior development bundle, choose a new output root:
 
@@ -59,29 +67,29 @@ OUTPUT_ROOT="$PWD/dist/development-next" scripts/package-app.sh --development
 For this repository’s own verified development builds, use the guarded sync helper after the test suite and packaging have both succeeded. It deliberately requires the exact candidate bundle; it never watches the working tree or promotes untested source changes.
 
 ```sh
-env CLANG_MODULE_CACHE_PATH=/tmp/codex-launcher-clang-cache \
-  SWIFT_MODULE_CACHE_PATH=/tmp/codex-launcher-swift-cache \
+env CLANG_MODULE_CACHE_PATH=/tmp/launchstation-clang-cache \
+  SWIFT_MODULE_CACHE_PATH=/tmp/launchstation-swift-cache \
   xcrun swift test --jobs 2
 
 OUTPUT_ROOT="$PWD/dist/development-next" scripts/package-app.sh --development
 scripts/sync-development-app.sh --check \
-  "$PWD/dist/development-next/Codex Launcher.app"
+  "$PWD/dist/development-next/Launch Station.app"
 scripts/sync-development-app.sh --sync --verified-development-bundle \
-  "$PWD/dist/development-next/Codex Launcher.app"
+  "$PWD/dist/development-next/Launch Station.app"
 ```
 
-`--check` is read-only: it prints the candidate and installed versions, builds, and executable hashes, then reports `CURRENT` or `CANDIDATE_NEWER`. `--sync` is deliberately explicit and accepts only a development-marked, validly signed Codex Launcher bundle with a strictly increasing version/build. It stages a byte-verified copy beside `/Applications/Codex Launcher.app`, atomically swaps the app directories, verifies the resulting hash, and keeps the outgoing application bundle in `~/.Trash` as a timestamped recovery copy. It does not change the original candidate, launcher database, skills, LaunchAgent, daemon process, or running sessions. If `/Applications` is not the installation location, use the inspected path explicitly with `--destination /absolute/path/Codex\ Launcher.app`.
+`--check` is read-only: it prints the candidate and installed versions, builds, and executable hashes, then reports `CURRENT` or `CANDIDATE_NEWER`. `--sync` is deliberately explicit and accepts only a development-marked, validly signed Launch Station bundle with a strictly increasing version/build. It stages a byte-verified copy beside `/Applications/Launch Station.app`, atomically swaps the app directories, verifies the resulting hash, and keeps the outgoing application bundle in `~/.Trash` as a timestamped recovery copy. It does not change the original candidate, launcher database, skills, LaunchAgent, daemon process, or running sessions. If `/Applications` is not the installation location, use the inspected path explicitly with `--destination /absolute/path/Launch\ Station.app`.
 
 A distributable release is a different operation. Its trust anchor is deliberately separate from the candidate bundle and its command line: `Resources/ReleaseTrustPolicy.plist` pins the exact Developer ID publisher and 10-character Team ID for the repository. The installer, upgrader, and verifier always read that file; none accepts `--team-id`, `--publisher`, or a policy override.
 
-The policy begins intentionally unconfigured. Configure it once only after the release owner has inspected the real Developer ID certificate with `security find-identity -v -p codesigning`. In a reviewed source change, set `Configured` to `true`, set `TeamIdentifier` to the exact 10-character certificate team, and set `Publisher` to the exact certificate publisher without the `Developer ID Application:` prefix. Commit/review that change before packaging. A false, malformed, missing, or mismatched policy fails closed: it cannot package, verify, install, or upgrade a release.
+The checked-in policy pins `Developer ID Application: Jake Mawson (6RWK4446NQ)`, derived from the locally verified certificate inventory. A false, malformed, missing, or mismatched policy fails closed: it cannot package, verify, install, or upgrade a release.
 
 After that one-time policy configuration, a release needs the corresponding signing identity and a preconfigured `notarytool` keychain profile:
 
 ```sh
 scripts/package-release.sh \
-  --signing-identity "Developer ID Application: <configured publisher> (<configured Team ID>)" \
-  --notary-profile KEYCHAIN_PROFILE
+  --signing-identity "Developer ID Application: Jake Mawson (6RWK4446NQ)" \
+  --notary-profile quotawise-notary
 ```
 
 `package-release.sh` claims a fresh UTC-stamped root under `dist/releases/` on every invocation and delegates to `package-app.sh --release`. It never overwrites or removes a prior candidate. A successful release root contains all of the following:
@@ -96,22 +104,22 @@ Before distribution or installation, independently check a release artifact:
 
 ```sh
 /bin/zsh scripts/verify-release-app.sh \
-  --app "/absolute/path/Codex Launcher.app"
+  --app "/absolute/path/Launch Station.app"
 ```
 
 Install the signed release as the logged-in macOS user — **never with `sudo`**:
 
 ```sh
 scripts/install.sh \
-  "/absolute/path/Codex Launcher.app"
+  "/absolute/path/Launch Station.app"
 ```
 
-The fresh installer prefers `/Applications/Codex Launcher.app` when the invoking user can write there. Otherwise it safely falls back to `~/Applications/Codex Launcher.app`. To choose a different existing writable parent explicitly:
+The fresh installer prefers `/Applications/Launch Station.app` when the invoking user can write there. Otherwise it safely falls back to `~/Applications/Launch Station.app`. To choose a different existing writable parent explicitly:
 
 ```sh
 scripts/install.sh \
-  --destination "$HOME/Applications/Codex Launcher.app" \
-  "/absolute/path/Codex Launcher.app"
+  --destination "$HOME/Applications/Launch Station.app" \
+  "/absolute/path/Launch Station.app"
 ```
 
 The installer is intentionally fresh-install-only. It refuses root/sudo execution, existing or dangling-symlink app/CLI/LaunchAgent paths, non-release bundles, and mismatched publisher policy. It validates the exact rendered LaunchAgent, then waits for the exact launchd PID and matching daemon metadata/version and runs `launch doctor --json` before declaring success. If startup fails, it stops only its own new job and rolls back only installer-created artifacts whose filesystem identity still matches; existing data is preserved.
@@ -120,14 +128,14 @@ For an explicit in-place upgrade of an existing installation, use the separately
 
 ```sh
 scripts/upgrade-installed-app.sh \
-  "/absolute/path/Codex Launcher.app"
+  "/absolute/path/Launch Station.app"
 ```
 
-The upgrader derives the existing app location from the current user’s exact LaunchAgent rather than assuming `/Applications`, so it works for both system and user Applications installations. It validates the signed/notarized **replacement** source and staged bundle against the fixed source-controlled Team ID/publisher policy while allowing a legacy ad-hoc installation to receive its first trusted upgrade. If the exact legacy bundle is root-owned at `/Applications/Codex Launcher.app`, the non-root upgrader leaves that bundle untouched, atomically installs the trusted replacement at `~/Applications/Codex Launcher.app`, and retargets only the verified per-user LaunchAgent and `~/bin/launch` link. It then verifies matching bundle/LaunchAgent identities, a nondecreasing app version/build, and an idle exact GUI; acquires a single-upgrader reservation; atomically changes the active app location; restarts and health-checks the exact LaunchAgent; and rolls back to the complete prior state on failure. The ordinary upgrade keeps the application database, logs, LaunchAgent, and CLI link in place.
+The upgrader derives the existing app location from the current user’s exact LaunchAgent rather than assuming `/Applications`, so it works for both system and user Applications installations. It validates the signed/notarized **replacement** source and staged bundle against the fixed source-controlled Team ID/publisher policy while allowing a legacy ad-hoc installation to receive its first trusted upgrade. If the exact legacy bundle is root-owned at `/Applications/Launch Station.app`, the non-root upgrader leaves that bundle untouched, atomically installs the trusted replacement at `~/Applications/Launch Station.app`, and retargets only the verified per-user LaunchAgent and `~/bin/launch` link. It then verifies matching bundle/LaunchAgent identities, a nondecreasing app version/build, and an idle exact GUI; acquires a single-upgrader reservation; atomically changes the active app location; restarts and health-checks the exact LaunchAgent; and rolls back to the complete prior state on failure. The ordinary upgrade keeps the application database, logs, LaunchAgent, and CLI link in place.
 
 The explicit `--allow-legacy-build-2` path is restricted to the one-time signed 1.1.0 build 2/schema-1 migration. It requires no active sessions, freezes the exact legacy daemon, and uses SQLite's backup API to create a private logical schema-1 snapshot, converts that snapshot to standalone DELETE-journal form, and integrity-checks it before the replacement can migrate anything. After launchd starts the replacement, the upgrader waits for service metadata identifying the exact new PID and source version before running `doctor`. If post-swap verification fails, rollback stops the replacement, restores both the old app bundle and schema-1 database, removes the migrated WAL/SHM sidecars, and only then restarts the old daemon. If either half cannot be restored safely, the old daemon stays stopped and the private transaction is retained for recovery.
 
-The LaunchAgent template is account-neutral. During installation, the script renders the current user's app location, `~/bin`, and `~/Library/Logs/Codex Launcher` paths into the installed plist; no developer home path is baked into the distribution.
+The LaunchAgent template is account-neutral. During installation, the script renders the current user's app location, `~/bin`, and `~/Library/Logs/Launch Station` paths into the installed plist; no developer home path is baked into the distribution.
 
 After installation:
 
@@ -190,7 +198,7 @@ Every mutating command updates SQLite and regenerates `/path/to/project/launch_d
 
 ## GUI
 
-Open the app location printed by the installer (`/Applications/Codex Launcher.app` when writable, otherwise `~/Applications/Codex Launcher.app`). The native interface provides:
+Open the app location printed by the installer (`/Applications/Launch Station.app` when writable, otherwise `~/Applications/Launch Station.app`). The native interface provides:
 
 - Search across launcher name, project name, project directory, and tags.
 - A separate running section with a card for each managed instance, including primary/additional role, session ID, PID information, independent `OPEN`, `LOGS`, `CLOSE`, and `RELAUNCH` actions, and live `STARTING`, `RUNNING`, `CLOSING`, failure, and idle states.
@@ -222,15 +230,15 @@ The default window is 1040 × 680 points and the supported minimum is 820 × 540
 
 ## Agent skill integration
 
-The app bundle carries one versioned, self-contained skill at `Contents/Resources/Skills/codex-launcher`. The daemon is the only installer; the GUI and CLI call its authenticated API. The same managed files are used for both supported hosts:
+The app bundle carries one versioned, self-contained skill at `Contents/Resources/Skills/launchstation`. The daemon is the only installer; the GUI and CLI call its authenticated API. The same managed files are used for both supported hosts:
 
 | Choice | Detection | Personal installation path |
 | --- | --- | --- |
-| Codex | Exact Codex/ChatGPT bundle ID plus OpenAI Developer ID signature, or an OpenAI-signed real `codex` that passes a bounded product-version probe in an expected executable path | `~/.agents/skills/codex-launcher` |
-| Claude Code | Exact Claude bundle ID plus Anthropic Developer ID signature, or an Anthropic-signed real `claude` that returns the documented Claude Code version banner from `~/.local/bin`, `~/bin`, Homebrew, `/usr/local/bin`, or daemon `PATH` | `~/.claude/skills/codex-launcher` |
+| Codex | Exact Codex/ChatGPT bundle ID plus OpenAI Developer ID signature, or an OpenAI-signed real `codex` that passes a bounded product-version probe in an expected executable path | `~/.agents/skills/launchstation` |
+| Claude Code | Exact Claude bundle ID plus Anthropic Developer ID signature, or an Anthropic-signed real `claude` that returns the documented Claude Code version banner from `~/.local/bin`, `~/bin`, Homebrew, `/usr/local/bin`, or daemon `PATH` | `~/.claude/skills/launchstation` |
 | Download `SKILL.md` | Running Launcher service | User-selected location from a native save panel |
 
-An unavailable product remains visible but disabled; clicking it cannot create that product's configuration. Launcher reports detected Codex Desktop/CLI and local Claude Desktop/CLI availability, but those surfaces are informational only: they never select a separate install or path. One Codex product install is shared by Codex Desktop, CLI, and IDE at `~/.agents/skills/codex-launcher`; the IDE reads those same installed files but is not separately detected or reported by Launcher because it is not another installation destination. One Claude product install is shared by local Claude Desktop and CLI at `~/.claude/skills/codex-launcher`. Reinstalling stages a complete replacement of the exact `codex-launcher` skill folder, preserves unknown files, verifies `SKILL.md`, `agents/openai.yaml`, and `VERSION` byte-for-byte, then exposes the entire directory in one atomic filesystem commit. Staging occurs in a mode-`0700` transaction directory outside the host's scanned `skills` root. A staging or commit failure leaves the previously visible install untouched; an interruption after commit can leave only a complete old snapshot outside discovery and is safe to retry. Sibling skills and unknown files are preserved. Symlinked or otherwise unsafe destinations are blocked.
+An unavailable product remains visible but disabled; clicking it cannot create that product's configuration. Launcher reports detected Codex Desktop/CLI and local Claude Desktop/CLI availability, but those surfaces are informational only: they never select a separate install or path. One Codex product install is shared by Codex Desktop, CLI, and IDE at `~/.agents/skills/launchstation`; the IDE reads those same installed files but is not separately detected or reported by Launcher because it is not another installation destination. One Claude product install is shared by local Claude Desktop and CLI at `~/.claude/skills/launchstation`. Reinstalling stages a complete replacement of the exact `launchstation` skill folder, preserves unknown files, verifies `SKILL.md`, `agents/openai.yaml`, and `VERSION` byte-for-byte, then exposes the entire directory in one atomic filesystem commit. Staging occurs in a mode-`0700` transaction directory outside the host's scanned `skills` root. A staging or commit failure leaves the previously visible install untouched; an interruption after commit can leave only a complete old snapshot outside discovery and is safe to retry. Sibling skills and unknown files are preserved. Symlinked or otherwise unsafe destinations are blocked.
 
 The skill tells coding agents to register every new runnable local project after verifying its real commands, recommend Launcher for ordinary local start/relaunch work, use compound actions for related services, and never edit `launch_details.md` manually. It also documents ports, readiness, native apps, Expo/iOS, revisions, deletion confirmation, API routes, failure handling, and security boundaries.
 
@@ -351,7 +359,7 @@ launch --create "Project Xcode" "Open this project's Xcode workspace" \
   -- /Applications/Xcode.app
 ```
 
-Arguments after the application target are passed through LaunchServices. The app runner requests a new application instance and records the returned PID. If LaunchServices reuses a pre-existing instance, Codex Launcher marks it as reused and refuses to terminate it on `CLOSE`.
+Arguments after the application target are passed through LaunchServices. The app runner requests a new application instance and records the returned PID. If LaunchServices reuses a pre-existing instance, Launch Station marks it as reused and refuses to terminate it on `CLOSE`.
 
 To open a URL or file without owning the receiving app:
 
@@ -433,7 +441,7 @@ launch action add "Shop full stack" frontend "Vite frontend" \
   --port-name frontend \
   --url 'http://${HOST}:${PORT}/' \
   --health 'http://${HOST}:${PORT}/' \
-  --env 'VITE_API_URL=${CODEX_LAUNCHER_ACTION_API_URL}' \
+  --env 'VITE_API_URL=${LAUNCH_STATION_ACTION_API_URL}' \
   -- npm run dev -- --host '${HOST}' --port '${PORT}' --strictPort
 
 launch action add "Shop full stack" database "Development data service" \
@@ -445,7 +453,7 @@ launch action add "Shop full stack" database "Development data service" \
 launch update "Shop full stack" --primary-action frontend
 ```
 
-Actions run in ascending order and stop in reverse order. Earlier successful actions expose their resolved endpoint values to later actions as `CODEX_LAUNCHER_ACTION_<ACTION_TOKEN>_HOST`, `_PORT`, and `_URL`; the normalized uppercase action name supplies the token. Linked references must identify an existing earlier required provider, and action names must produce unique tokens. The example therefore starts database → API → frontend while keeping frontend primary for runtime arguments and `--open`.
+Actions run in ascending order and stop in reverse order. Earlier successful actions expose their resolved endpoint values to later actions as `LAUNCH_STATION_ACTION_<ACTION_TOKEN>_HOST`, `_PORT`, and `_URL`; the normalized uppercase action name supplies the token. Linked references must identify an existing earlier required provider, and action names must produce unique tokens. The example therefore starts database → API → frontend while keeping frontend primary for runtime arguments and `--open`.
 
 If a required action fails to start or become ready, already-started actions are closed. Add `--optional` while creating an action to permit the rest of the launcher to remain active in a `partial` session.
 
@@ -557,7 +565,7 @@ launch skill uninstall codex|claude-code
 launch skill source [--json]
 ```
 
-Status reports product detection, install path, current/outdated/blocked state, and managed version. Detected product surfaces are informational only: one Codex product install serves Codex Desktop, CLI, and IDE at `~/.agents/skills/codex-launcher`, and the IDE reads those same files but is not separately detected or reported by Launcher; one Claude product install serves local Claude Desktop and CLI at `~/.claude/skills/codex-launcher`. Install is a non-retried host-only mutation and refuses an unavailable product or unsafe destination. Source prints the exact standalone `SKILL.md`; the GUI uses the same source with `NSSavePanel`.
+Status reports product detection, install path, current/outdated/blocked state, and managed version. Detected product surfaces are informational only: one Codex product install serves Codex Desktop, CLI, and IDE at `~/.agents/skills/launchstation`, and the IDE reads those same files but is not separately detected or reported by Launcher; one Claude product install serves local Claude Desktop and CLI at `~/.claude/skills/launchstation`. Install is a non-retried host-only mutation and refuses an unavailable product or unsafe destination. Source prints the exact standalone `SKILL.md`; the GUI uses the same source with `NSSavePanel`.
 
 Uninstall is product- and receipt-bound: it requires a TTY and the exact confirmation text from the selected product's receipt-backed inspection, lists removable and preserved files, then removes only receipt-proven Launcher-managed files. Unsafe, modified, unrecognized, changed, or bounded-inspection failures are warning-backed refusals, not permission to remove a whole skill directory.
 
@@ -639,7 +647,7 @@ Every initialized project has exactly one generated file named `launch_details.m
 
 The file contains:
 
-- A generated-file warning, schema identifier `com.codex.launcher/launch-details-v1`, project ID, revision, and SHA-256 content hash.
+- A generated-file warning, schema identifier `com.launchstation/launch-details-v1`, project ID, revision, and SHA-256 content hash.
 - Project directory and catalog metadata.
 - Launchers sorted deterministically by normalized name.
 - Name, ID, description, run details, tags, revision, and ready-to-copy `launch` command for each launcher.
@@ -658,7 +666,7 @@ Discover credentials for the current daemon process:
 
 ```sh
 ENDPOINT="$(launch api endpoint)"
-METADATA="$HOME/Library/Application Support/Codex Launcher/service.json"
+METADATA="$HOME/Library/Application Support/Launch Station/service.json"
 TOKEN="$(plutil -extract token raw -o - "$METADATA")"
 
 curl -sS \
@@ -814,7 +822,7 @@ Launcher patch fields are `expectedRevision`, optional `name`, `description`, `r
 - The runner maps `codex-port`'s `CODEX_PORT`/`CODEX_HOST` values into the configured action variables, defaulting to `PORT`/`HOST`.
 - Direct executable paths, arguments, and configured environment values support `${VARIABLE}` substitution. Shell commands receive the variables in their zsh environment.
 - A slash-containing relative process executable such as `./tool` resolves from that action's resolved working directory. Critical tools should still use a known PATH or absolute path rather than interactive shell setup.
-- Later compound actions receive `CODEX_LAUNCHER_ACTION_<ACTION_TOKEN>_HOST`, `_PORT`, and `_URL` for earlier resolved actions. These names are runtime-owned, structurally validated, and omitted from generated manifests.
+- Later compound actions receive `LAUNCH_STATION_ACTION_<ACTION_TOKEN>_HOST`, `_PORT`, and `_URL` for earlier resolved actions. These names are runtime-owned, structurally validated, and omitted from generated manifests.
 - Endpoint and health templates support `${HOST}`/`${PORT}`, `{host}`/`{port}`, and `{{host}}`/`{{port}}`.
 - A readiness URL succeeds on HTTP 200–399. Required-action timeout/failure closes already-started services; optional-action failure may leave a `partial` session.
 
@@ -838,13 +846,13 @@ The LaunchAgent and runner use a stable baseline `PATH` containing `~/bin`, Appl
 
 | Path | Contents/permissions |
 | --- | --- |
-| `~/Library/Application Support/Codex Launcher/launcher.sqlite3` | SQLite source of truth, mode `0600`, WAL enabled |
-| `~/Library/Application Support/Codex Launcher/service.json` | Dynamic endpoint/token/PID metadata, mode `0600` |
-| `~/Library/Application Support/Codex Launcher/Logs/<session>/` | Per-action process output, private state directory |
-| `~/Library/Application Support/Codex Launcher/Runner Specifications/` | Private launch specifications |
-| `~/Library/Application Support/Codex Launcher/Runner Status/` | Exact process handshake records |
-| `~/Library/Logs/Codex Launcher/service.log` | LaunchAgent standard output |
-| `~/Library/Logs/Codex Launcher/service-error.log` | LaunchAgent/daemon errors |
+| `~/Library/Application Support/Launch Station/launcher.sqlite3` | SQLite source of truth, mode `0600`, WAL enabled |
+| `~/Library/Application Support/Launch Station/service.json` | Dynamic endpoint/token/PID metadata, mode `0600` |
+| `~/Library/Application Support/Launch Station/Logs/<session>/` | Per-action process output, private state directory |
+| `~/Library/Application Support/Launch Station/Runner Specifications/` | Private launch specifications |
+| `~/Library/Application Support/Launch Station/Runner Status/` | Exact process handshake records |
+| `~/Library/Logs/Launch Station/service.log` | LaunchAgent standard output |
+| `~/Library/Logs/Launch Station/service-error.log` | LaunchAgent/daemon errors |
 
 `launch logs NAME` and the GUI return the active session's logs, or the last session when idle. The API reads at most the most recent 512 KiB from each action log and labels sections by action/state.
 
@@ -868,9 +876,9 @@ This is a local command-execution service. Anyone who obtains the bearer token c
 ### Service unavailable
 
 ```sh
-launchctl print "gui/$(id -u)/com.jakemawson.codex-launcher.service"
-launchctl kickstart "gui/$(id -u)/com.jakemawson.codex-launcher.service"
-tail -n 100 "$HOME/Library/Logs/Codex Launcher/service-error.log"
+launchctl print "gui/$(id -u)/com.jakemawson.launchstation.service"
+launchctl kickstart "gui/$(id -u)/com.jakemawson.launchstation.service"
+tail -n 100 "$HOME/Library/Logs/Launch Station/service-error.log"
 ```
 
 Then retry `launch doctor`. Doctor reports both the daemon version and schema, returns success only when the service is healthy and compatible with this CLI, and returns exit 6 for an older/incompatible daemon. Safe read-only client requests make one automatic LaunchAgent kickstart/retry when metadata or transport is unavailable. A mutation may kickstart the service before its first request when metadata is absent, but the mutation itself is sent exactly once and is never transparently retried after an ambiguous transport failure; retrieve current state before deciding whether to repeat one.
@@ -942,13 +950,13 @@ The daemon restarted and generated a new token, or the request reached the API w
 The core test suite covers SQLite persistence/concurrency rules and deterministic manifest rendering:
 
 ```sh
-env CLANG_MODULE_CACHE_PATH=/tmp/codex-launcher-clang-cache \
-  SWIFT_MODULE_CACHE_PATH=/tmp/codex-launcher-swift-cache \
+env CLANG_MODULE_CACHE_PATH=/tmp/launchstation-clang-cache \
+  SWIFT_MODULE_CACHE_PATH=/tmp/launchstation-swift-cache \
   xcrun swift test --jobs 2
 ```
 
-`Tests/e2e.sh` is the isolated daemon integration harness. It verifies bearer authentication, conflict-safe project initialization (including preservation of an unmanaged `launch_details.md`), project-filtered retrieval, mode-`0444` manifests, literal percent-encoded names, normalized duplicate rejection, complete action mutation, stable action ordering after deletion, cross-action endpoint injection, compound launch/close, simultaneous primary/additional instances, exact additional relaunch/close, durable role-filtered history, server-derived Open choices, listener-to-session correlation, active and idle atomic relaunch, CLOSE during readiness without starting later actions, fresh managed lifecycle ownership, shell runtime arguments, readiness, logs, natural exits, revision conflicts, rename/delete confirmation, drift repair, and final catalog cleanup. It requires `CODEX_LAUNCHER_STATE_DIR` to identify the already-running isolated test daemon and accepts `LAUNCH_BINARY` to select the CLI under test.
+`Tests/e2e.sh` is the isolated daemon integration harness. It verifies bearer authentication, conflict-safe project initialization (including preservation of an unmanaged `launch_details.md`), project-filtered retrieval, mode-`0444` manifests, literal percent-encoded names, normalized duplicate rejection, complete action mutation, stable action ordering after deletion, cross-action endpoint injection, compound launch/close, simultaneous primary/additional instances, exact additional relaunch/close, durable role-filtered history, server-derived Open choices, listener-to-session correlation, active and idle atomic relaunch, CLOSE during readiness without starting later actions, fresh managed lifecycle ownership, shell runtime arguments, readiness, logs, natural exits, revision conflicts, rename/delete confirmation, drift repair, and final catalog cleanup. It requires `LAUNCH_STATION_STATE_DIR` to identify the already-running isolated test daemon and accepts `LAUNCH_BINARY` to select the CLI under test.
 
 `Tests/runner-environment.sh` exercises the minimal inherited environment, managed host/port alias validation and precedence, working-directory-relative executables, exact process-group identity, and the runner start gate. `Tests/process-supervisor-start-gate.sh` proves that a direct action remains suspended until its exact PID/birth/process-group record is durably registered and is killed without acknowledgement when registration fails. `Tests/simulator-orchestration.sh` uses fake `xcrun` and Simulator-open helpers to verify device selection, boot, install, and launch sequencing without changing a real simulator; it also exercises large helper output, bounded helper timeouts, and descendant-held pipes so helper execution cannot deadlock the daemon.
 
-`Tests/seed-ui-fixture.sh` creates a representative UI catalog for visual QA in an isolated state directory; it also requires `CODEX_LAUNCHER_STATE_DIR`.
+`Tests/seed-ui-fixture.sh` creates a representative UI catalog for visual QA in an isolated state directory; it also requires `LAUNCH_STATION_STATE_DIR`.

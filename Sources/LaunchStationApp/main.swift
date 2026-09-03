@@ -1,7 +1,7 @@
 import LauncherCore
 import SwiftUI
 
-struct CodexLauncherApp: App {
+struct LaunchStationApp: App {
     @StateObject private var viewModel = LauncherViewModel(client: .default)
 
     var body: some Scene {
@@ -22,4 +22,4 @@ struct CodexLauncherApp: App {
     }
 }
 
-CodexLauncherApp.main()
+LaunchStationApp.main()

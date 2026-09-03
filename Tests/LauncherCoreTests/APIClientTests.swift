@@ -132,18 +132,18 @@ final class APIClientTests: XCTestCase {
     func testSafeReadReloadsReplacementMetadataWithoutDestructiveKickstart() async throws {
         XCTAssertEqual(
             LauncherPaths.serviceKickstartArguments(userID: 501),
-            ["kickstart", "gui/501/com.jakemawson.codex-launcher.service"]
+            ["kickstart", "gui/501/com.jakemawson.launchstation.service"]
         )
         XCTAssertFalse(LauncherPaths.serviceKickstartArguments(userID: 501).contains("-k"))
         XCTAssertEqual(
             LauncherPaths.serviceBootstrapArguments(
                 userID: 501,
-                launchAgentURL: URL(fileURLWithPath: "/Users/test/Library/LaunchAgents/com.jakemawson.codex-launcher.service.plist")
+                launchAgentURL: URL(fileURLWithPath: "/Users/test/Library/LaunchAgents/com.jakemawson.launchstation.service.plist")
             ),
             [
                 "bootstrap",
                 "gui/501",
-                "/Users/test/Library/LaunchAgents/com.jakemawson.codex-launcher.service.plist"
+                "/Users/test/Library/LaunchAgents/com.jakemawson.launchstation.service.plist"
             ]
         )
 
@@ -154,7 +154,7 @@ final class APIClientTests: XCTestCase {
         configuration.protocolClasses = [StubURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-APIClientTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-APIClientTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let metadataURL = root.appendingPathComponent("service.json")
@@ -230,7 +230,7 @@ final class APIClientTests: XCTestCase {
         configuration.protocolClasses = [StubURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-APIClientTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-APIClientTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let metadataURL = root.appendingPathComponent("service.json")
@@ -269,7 +269,7 @@ final class APIClientTests: XCTestCase {
         configuration.protocolClasses = [StubURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-APIClientTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-APIClientTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let metadataURL = root.appendingPathComponent("service.json")
@@ -615,7 +615,7 @@ final class APIClientTests: XCTestCase {
         let installStatus = LauncherSkillHostStatus(
             host: .codex,
             available: true,
-            installationPath: "/tmp/codex-launcher",
+            installationPath: "/tmp/launchstation",
             state: .current,
             installedVersion: "1.1.0",
             message: "current"
@@ -625,7 +625,7 @@ final class APIClientTests: XCTestCase {
             requests.modify { $0.append(request) }
             return try Self.response(
                 for: request,
-                body: LauncherSkillInstallResult(status: installStatus, installedFiles: ["/tmp/codex-launcher/SKILL.md"])
+                body: LauncherSkillInstallResult(status: installStatus, installedFiles: ["/tmp/launchstation/SKILL.md"])
             )
         }
 
@@ -664,7 +664,7 @@ final class APIClientTests: XCTestCase {
     func testSkillUninstallUsesTwoIntentBoundMutationRoutesAndConfirmationText() async throws {
         let binding = LauncherSkillUninstallBinding(
             host: .codex,
-            destinationPath: "/tmp/codex-launcher",
+            destinationPath: "/tmp/launchstation",
             installationID: UUID(),
             receiptDigest: "receipt-digest",
             targetIdentity: LauncherSkillTargetIdentity(device: 1, inode: 2),
@@ -674,10 +674,10 @@ final class APIClientTests: XCTestCase {
             token: "single-use-capability",
             expiresAt: Date(timeIntervalSince1970: 1_800_000_000),
             host: .codex,
-            sharedInstallationPath: "/tmp/codex-launcher",
+            sharedInstallationPath: "/tmp/launchstation",
             installedVersion: "1.1.0",
             binding: binding,
-            removablePaths: ["/tmp/codex-launcher/SKILL.md"],
+            removablePaths: ["/tmp/launchstation/SKILL.md"],
             preservedPaths: [],
             confirmationText: "uninstall codex shared skill",
             message: "receipt proven"
@@ -685,7 +685,7 @@ final class APIClientTests: XCTestCase {
         let status = LauncherSkillHostStatus(
             host: .codex,
             available: true,
-            installationPath: "/tmp/codex-launcher",
+            installationPath: "/tmp/launchstation",
             state: .current,
             installedVersion: "1.1.0",
             message: "removed"
@@ -701,7 +701,7 @@ final class APIClientTests: XCTestCase {
                 body: LauncherSkillUninstallResponse(
                     result: LauncherSkillUninstallResult(
                         host: .codex,
-                        destinationPath: "/tmp/codex-launcher",
+                        destinationPath: "/tmp/launchstation",
                         installationID: binding.installationID,
                         consumedReceiptDigest: binding.receiptDigest,
                         removedRelativePaths: ["SKILL.md"],
@@ -877,7 +877,7 @@ final class APIClientTests: XCTestCase {
         let session = URLSession(configuration: configuration)
 
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLauncher-APIClientTests", isDirectory: true)
+            .appendingPathComponent("LaunchStation-APIClientTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let metadataURL = root.appendingPathComponent("service.json")

@@ -26,13 +26,13 @@ public enum LauncherSkillError: LocalizedError, Equatable {
 /// Owns the signed, bundled copy of the agent skill and the two documented user-scope
 /// destinations. The daemon invokes mutations; GUI and CLI clients only call its API.
 public struct LauncherSkillManager: Sendable {
-    public static let skillName = "codex-launcher"
-    public static let version = "1.2.0"
+    public static let skillName = "launchstation"
+    public static let version = "1.3.0"
     public static let exportedFileName = "SKILL.md"
-    public static let installReceiptFileName = ".codex-launcher-install-receipt.json"
+    public static let installReceiptFileName = ".launchstation-install-receipt.json"
 
     private static let receiptSchemaVersion = 1
-    private static let receiptManagerID = "com.jakemawson.codex-launcher"
+    private static let receiptManagerID = "com.jakemawson.launchstation"
     private static let maximumManagedFileBytes: Int64 = 4 * 1_024 * 1_024
     private static let maximumInspectionEntries = 4_096
     private static let maximumInspectionDepth = 24
@@ -115,19 +115,19 @@ public struct LauncherSkillManager: Sendable {
         executablePath: String = CommandLine.arguments.first ?? ""
     ) throws -> LauncherSkillManager {
         var candidates: [URL] = []
-        if let override = environment["CODEX_LAUNCHER_SKILL_DIR"], !override.isEmpty {
+        if let override = environment["LAUNCH_STATION_SKILL_DIR"], !override.isEmpty {
             candidates.append(URL(fileURLWithPath: NSString(string: override).expandingTildeInPath, isDirectory: true))
         }
         if let resourceURL = Bundle.main.resourceURL {
-            candidates.append(resourceURL.appendingPathComponent("Skills/codex-launcher", isDirectory: true))
+            candidates.append(resourceURL.appendingPathComponent("Skills/launchstation", isDirectory: true))
         }
         if !executablePath.isEmpty,
            let applicationURL = containingApplicationURL(for: URL(fileURLWithPath: executablePath).standardizedFileURL) {
-            candidates.append(applicationURL.appendingPathComponent("Contents/Resources/Skills/codex-launcher", isDirectory: true))
+            candidates.append(applicationURL.appendingPathComponent("Contents/Resources/Skills/launchstation", isDirectory: true))
         }
         candidates.append(
             URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-                .appendingPathComponent("Skills/codex-launcher", isDirectory: true)
+                .appendingPathComponent("Skills/launchstation", isDirectory: true)
         )
 
         for candidate in candidates where hasCanonicalFiles(at: candidate) {
@@ -401,9 +401,9 @@ public struct LauncherSkillManager: Sendable {
     public func installationDirectory(for host: LauncherSkillHost) -> URL {
         switch host {
         case .codex:
-            return homeDirectory.appendingPathComponent(".agents/skills/codex-launcher", isDirectory: true)
+            return homeDirectory.appendingPathComponent(".agents/skills/launchstation", isDirectory: true)
         case .claudeCode:
-            return homeDirectory.appendingPathComponent(".claude/skills/codex-launcher", isDirectory: true)
+            return homeDirectory.appendingPathComponent(".claude/skills/launchstation", isDirectory: true)
         }
     }
 
@@ -415,7 +415,7 @@ public struct LauncherSkillManager: Sendable {
         case .claudeCode:
             hostRoot = homeDirectory.appendingPathComponent(".claude", isDirectory: true)
         }
-        return hostRoot.appendingPathComponent(".codex-launcher-transactions", isDirectory: true)
+        return hostRoot.appendingPathComponent(".launchstation-transactions", isDirectory: true)
     }
 
     public func inspectUninstall(host: LauncherSkillHost) -> LauncherSkillUninstallInspection {

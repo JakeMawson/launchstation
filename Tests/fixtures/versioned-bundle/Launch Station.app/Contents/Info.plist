@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.jakemawson.codex-launcher</string>
+    <string>com.jakemawson.launchstation</string>
     <key>CFBundleShortVersionString</key>
     <string>9.8.7</string>
 </dict>

@@ -29,7 +29,7 @@ Team ID. Required caller-supplied release inputs are therefore only:
   --notary-profile KEYCHAIN_PROFILE
 
 Those two values can alternatively be supplied through the documented
-CODEX_LAUNCHER_SIGNING_IDENTITY and CODEX_LAUNCHER_NOTARY_PROFILE environment
+LAUNCH_STATION_SIGNING_IDENTITY and LAUNCH_STATION_NOTARY_PROFILE environment
 variables. --team-id, --publisher, and policy overrides are rejected so a
 candidate cannot choose the installer/verifier trust root.
 EOF

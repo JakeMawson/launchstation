@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-ARTIFACTS="${CODEX_LAUNCHER_GATE_ARTIFACTS:-/tmp/codex-launcher-supervisor-gate-$$}"
-MODULE_CACHE="${SWIFT_MODULE_CACHE_PATH:-/tmp/codex-launcher-swift-cache}"
-CLANG_CACHE="${CLANG_MODULE_CACHE_PATH:-/tmp/codex-launcher-clang-cache}"
+ARTIFACTS="${LAUNCH_STATION_GATE_ARTIFACTS:-/tmp/launchstation-supervisor-gate-$$}"
+MODULE_CACHE="${SWIFT_MODULE_CACHE_PATH:-/tmp/launchstation-swift-cache}"
+CLANG_CACHE="${CLANG_MODULE_CACHE_PATH:-/tmp/launchstation-clang-cache}"
 
 mkdir -p "$ARTIFACTS"
 env CLANG_MODULE_CACHE_PATH="$CLANG_CACHE" SWIFT_MODULE_CACHE_PATH="$MODULE_CACHE" \
@@ -28,4 +28,4 @@ env CLANG_MODULE_CACHE_PATH="$CLANG_CACHE" SWIFT_MODULE_CACHE_PATH="$MODULE_CACH
     -framework AppKit -lsqlite3 \
     -o "$HARNESS"
 
-"$HARNESS" "$ROOT/.build/debug/codex-launcher-runner" "$ARTIFACTS/runtime"
+"$HARNESS" "$ROOT/.build/debug/launchstation-runner" "$ARTIFACTS/runtime"

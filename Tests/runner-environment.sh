@@ -3,9 +3,9 @@ set -euo pipefail
 setopt NO_BG_NICE
 
 ROOT="${0:A:h:h}"
-RUNNER="${RUNNER_BINARY:-$ROOT/.build/debug/codex-launcher-runner}"
-STAMP="${CODEX_LAUNCHER_RUNNER_TEST_STAMP:-$(date +%s)-$$}"
-ARTIFACTS="${CODEX_LAUNCHER_RUNNER_TEST_ARTIFACTS:-/tmp/codex-launcher-runner-test-$STAMP}"
+RUNNER="${RUNNER_BINARY:-$ROOT/.build/debug/launchstation-runner}"
+STAMP="${LAUNCH_STATION_RUNNER_TEST_STAMP:-$(date +%s)-$$}"
+ARTIFACTS="${LAUNCH_STATION_RUNNER_TEST_ARTIFACTS:-/tmp/launchstation-runner-test-$STAMP}"
 mkdir -p "$ARTIFACTS"
 
 fail() {

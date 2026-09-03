@@ -3,12 +3,12 @@ import Foundation
 /// Resolves the version advertised by a running Launcher process.
 ///
 /// A packaged helper does not have its own `Info.plist`: both the GUI executable
-/// (`Contents/MacOS/CodexLauncher`) and the daemon helper
-/// (`Contents/Helpers/codex-launcherd`) inherit their version from the enclosing
+/// (`Contents/MacOS/LaunchStation`) and the daemon helper
+/// (`Contents/Helpers/launchstationd`) inherit their version from the enclosing
 /// application bundle. Source builds and XCTest bundles do not have that layout,
 /// so they deliberately retain the minimum compatible development version.
 public enum LauncherRuntimeVersion {
-    public static let developmentFallback = "1.2.0"
+    public static let developmentFallback = "1.3.0"
 
     /// Returns the packaged application's `CFBundleShortVersionString` when this
     /// process is located inside an `.app` bundle, otherwise the development fallback.

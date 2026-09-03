@@ -52,7 +52,7 @@ private enum RunnerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .usage:
-            return "Usage: codex-launcher-runner --spec /absolute/path/to/spec.json"
+            return "Usage: launchstation-runner --spec /absolute/path/to/spec.json"
         case .invalidSchema(let schema):
             return "Unsupported runner specification schema: \(schema)"
         case .unableToCreateSession(let code):
@@ -502,7 +502,7 @@ private func run() throws -> Int32 {
 do {
     Darwin.exit(try run())
 } catch {
-    let message = "codex-launcher-runner: \(error.localizedDescription)\n"
+    let message = "launchstation-runner: \(error.localizedDescription)\n"
     FileHandle.standardError.write(Data(message.utf8))
     Darwin.exit(126)
 }

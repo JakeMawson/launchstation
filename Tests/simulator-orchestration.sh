@@ -4,16 +4,16 @@ setopt NO_BG_NICE
 
 ROOT="${0:A:h:h}"
 LAUNCH="${LAUNCH_BINARY:-$ROOT/.build/debug/launch}"
-DAEMON="${DAEMON_BINARY:-$ROOT/.build/debug/codex-launcherd}"
-RUNNER="${RUNNER_BINARY:-$ROOT/.build/debug/codex-launcher-runner}"
+DAEMON="${DAEMON_BINARY:-$ROOT/.build/debug/launchstationd}"
+RUNNER="${RUNNER_BINARY:-$ROOT/.build/debug/launchstation-runner}"
 CODEX_PORT="${CODEX_PORT_EXECUTABLE:-$HOME/bin/codex-port}"
 FAKE_XCRUN="$ROOT/Tests/fixtures/fake-xcrun.sh"
 FAKE_OPEN="$ROOT/Tests/fixtures/fake-simulator-open.sh"
-STAMP="${CODEX_LAUNCHER_SIM_TEST_STAMP:-$(date +%s)-$$}"
-STATE_DIR="${CODEX_LAUNCHER_SIM_STATE_DIR:-/tmp/codex-launcher-simulator-state-$STAMP}"
-PROJECT="${CODEX_LAUNCHER_SIM_PROJECT:-/tmp/codex-launcher-simulator-project-$STAMP}"
-ARTIFACTS="${CODEX_LAUNCHER_SIM_ARTIFACTS:-/tmp/codex-launcher-simulator-artifacts-$STAMP}"
-NAME="codex-launcher-simulator-$STAMP"
+STAMP="${LAUNCH_STATION_SIM_TEST_STAMP:-$(date +%s)-$$}"
+STATE_DIR="${LAUNCH_STATION_SIM_STATE_DIR:-/tmp/launchstation-simulator-state-$STAMP}"
+PROJECT="${LAUNCH_STATION_SIM_PROJECT:-/tmp/launchstation-simulator-project-$STAMP}"
+ARTIFACTS="${LAUNCH_STATION_SIM_ARTIFACTS:-/tmp/launchstation-simulator-artifacts-$STAMP}"
+NAME="launchstation-simulator-$STAMP"
 SIM_LOG="$ARTIFACTS/simulator-commands.log"
 EXPECTED_LOG="$ARTIFACTS/expected-simulator-commands.log"
 MODE_FILE="$ARTIFACTS/fake-simulator-mode.txt"
@@ -53,23 +53,23 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 "$CODEX_PORT" run \
-  --title "Codex Launcher fake Simulator $STAMP" \
+  --title "Launch Station fake Simulator $STAMP" \
   --description "Isolated fake Simulator orchestration integration test; never invokes real xcrun or Simulator." \
   --workdir "$ROOT" \
   --port auto \
   --host 127.0.0.1 \
   --ttl 20m \
   -- /usr/bin/env \
-    "CODEX_LAUNCHER_STATE_DIR=$STATE_DIR" \
-    "CODEX_LAUNCHER_RUNNER=$RUNNER" \
+    "LAUNCH_STATION_STATE_DIR=$STATE_DIR" \
+    "LAUNCH_STATION_RUNNER=$RUNNER" \
     "CODEX_PORT_EXECUTABLE=$CODEX_PORT" \
-    "CODEX_LAUNCHER_XCRUN=$FAKE_XCRUN" \
-    "CODEX_LAUNCHER_SIMULATOR_OPEN=$FAKE_OPEN" \
-    "CODEX_LAUNCHER_FAKE_SIM_LOG=$SIM_LOG" \
-    "CODEX_LAUNCHER_FAKE_SIM_MODE_FILE=$MODE_FILE" \
-    "CODEX_LAUNCHER_FAKE_SIM_PARENT_PID=$HANG_PARENT_PID" \
-    "CODEX_LAUNCHER_FAKE_SIM_CHILD_PID=$HANG_CHILD_PID" \
-    "CODEX_LAUNCHER_HELPER_TIMEOUT_SECONDS=0.5" \
+    "LAUNCH_STATION_XCRUN=$FAKE_XCRUN" \
+    "LAUNCH_STATION_SIMULATOR_OPEN=$FAKE_OPEN" \
+    "LAUNCH_STATION_FAKE_SIM_LOG=$SIM_LOG" \
+    "LAUNCH_STATION_FAKE_SIM_MODE_FILE=$MODE_FILE" \
+    "LAUNCH_STATION_FAKE_SIM_PARENT_PID=$HANG_PARENT_PID" \
+    "LAUNCH_STATION_FAKE_SIM_CHILD_PID=$HANG_CHILD_PID" \
+    "LAUNCH_STATION_HELPER_TIMEOUT_SECONDS=0.5" \
     "$DAEMON" \
   > "$DAEMON_RECORD"
 
@@ -91,7 +91,7 @@ for attempt in {1..120}; do
 done
 [[ "$daemon_ready" == 1 ]] || fail "temporary launcher daemon did not become healthy"
 
-export CODEX_LAUNCHER_STATE_DIR="$STATE_DIR"
+export LAUNCH_STATION_STATE_DIR="$STATE_DIR"
 "$LAUNCH" init "$PROJECT" --project-name "Fake Simulator $STAMP" --json > "$ARTIFACTS/project.json"
 "$LAUNCH" create "$NAME" "Verify shutdown-device Simulator orchestration without real Simulator mutation" \
   --directory "$PROJECT" \

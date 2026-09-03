@@ -2,21 +2,21 @@ import Darwin
 import Foundation
 
 public enum LauncherPaths {
-    public static let launchAgentLabel = "com.jakemawson.codex-launcher.service"
+    public static let launchAgentLabel = "com.jakemawson.launchstation.service"
 
     public static var homeDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
     }
 
     public static var defaultStateDirectory: URL {
-        if let override = ProcessInfo.processInfo.environment["CODEX_LAUNCHER_STATE_DIR"], !override.isEmpty {
+        if let override = ProcessInfo.processInfo.environment["LAUNCH_STATION_STATE_DIR"], !override.isEmpty {
             return URL(fileURLWithPath: NSString(string: override).expandingTildeInPath, isDirectory: true)
                 .standardizedFileURL
         }
         return homeDirectory
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Codex Launcher", isDirectory: true)
+            .appendingPathComponent("Launch Station", isDirectory: true)
     }
 
     public static var databaseURL: URL {
@@ -35,7 +35,7 @@ public enum LauncherPaths {
         homeDirectory
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent("Codex Launcher", isDirectory: true)
+            .appendingPathComponent("Launch Station", isDirectory: true)
     }
 
     public static var launchAgentURL: URL {

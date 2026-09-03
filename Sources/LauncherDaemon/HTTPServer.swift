@@ -47,7 +47,7 @@ struct HTTPResponse: Sendable {
 final class HTTPServer {
     typealias Handler = @Sendable (HTTPRequest) async -> HTTPResponse
 
-    private let queue = DispatchQueue(label: "com.jakemawson.codex-launcher.http", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.jakemawson.launchstation.http", qos: .userInitiated)
     private let handler: Handler
     private let token: String
     private var listener: NWListener?

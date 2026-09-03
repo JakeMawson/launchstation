@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.jakemawson.codex-launcher.service</string>
+    <string>com.jakemawson.launchstation.service</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Applications/Codex Launcher.app/Contents/Helpers/codex-launcherd</string>
+        <string>/Applications/Launch Station.app/Contents/Helpers/launchstationd</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -22,17 +22,17 @@
         <key>LANG</key>
         <string>en_US.UTF-8</string>
         <key>PATH</key>
-        <string>__CODEX_LAUNCHER_HOME__/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>__LAUNCH_STATION_HOME__/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>ThrottleInterval</key>
     <integer>5</integer>
     <key>AssociatedBundleIdentifiers</key>
     <array>
-        <string>com.jakemawson.codex-launcher</string>
+        <string>com.jakemawson.launchstation</string>
     </array>
     <key>StandardOutPath</key>
-    <string>__CODEX_LAUNCHER_HOME__/Library/Logs/Codex Launcher/service.log</string>
+    <string>__LAUNCH_STATION_HOME__/Library/Logs/Launch Station/service.log</string>
     <key>StandardErrorPath</key>
-    <string>__CODEX_LAUNCHER_HOME__/Library/Logs/Codex Launcher/service-error.log</string>
+    <string>__LAUNCH_STATION_HOME__/Library/Logs/Launch Station/service-error.log</string>
 </dict>
 </plist>

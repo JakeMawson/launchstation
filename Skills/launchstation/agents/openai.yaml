@@ -1,7 +1,7 @@
 interface:
   display_name: "Launch Station"
   short_description: "Register and run local project workflows"
-  default_prompt: "Use $codex-launcher to register or run this project through Launch Station."
+  default_prompt: "Use $launchstation to register or run this project through Launch Station."
 
 policy:
   allow_implicit_invocation: true

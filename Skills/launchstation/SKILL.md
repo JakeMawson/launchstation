@@ -1,5 +1,5 @@
 ---
-name: codex-launcher
+name: launchstation
 description: "Use Launch Station for every new or materially changed runnable local project: register its repeatable start workflow, discover and reconcile existing launchers, start managed instances, inspect history, open server-derived targets, and close exact owned sessions through the `launch` CLI or authenticated local API. Trigger when creating a runnable app/service, changing dev commands, working with `launch_details.md`, external listeners, Expo/iOS/Simulator workflows, compound frontend/API/database stacks, or when the user mentions Launch Station. Do not use it for deployment/production control, untrusted commands, or one-off build/test/lint tasks unless the user asks to save them."
 ---
 
@@ -34,7 +34,7 @@ Use this whenever work creates a local app, server, site, mobile project, native
    launch doctor "$PROJECT_ROOT" --json
    ```
 
-4. Require a healthy local service and supported schema. If `launch` is missing or incompatible, report that Codex Launcher must be installed or updated. Do not fabricate its files or database.
+4. Require a healthy local service and supported schema. If `launch` is missing or incompatible, report that Launch Station must be installed or updated. Do not fabricate its files or database.
 5. Initialize the canonical root:
 
    ```sh
@@ -167,7 +167,7 @@ Give every persistent TCP listener its own `--port auto`, unique action name/por
 
 ## Compound projects
 
-Create one action, append the rest with explicit startup order, then select the user-facing primary action. Earlier successful actions expose their resolved values to later actions as `CODEX_LAUNCHER_ACTION_<ACTION_TOKEN>_HOST`, `_PORT`, and `_URL`; the token is the normalized uppercase action name with punctuation replaced by underscores. A name with no ASCII alphanumeric token falls back to `ID_<ACTION_UUID>`, which can be derived only from retrieved details, so prefer clear ASCII action names for linked providers. Providers must be required, must start before consumers, and action names must map to unique tokens. Launcher validates linked references structurally before registration. The placeholder may appear in the stored command/mirror, but its resolved runtime value is never persisted there.
+Create one action, append the rest with explicit startup order, then select the user-facing primary action. Earlier successful actions expose their resolved values to later actions as `LAUNCH_STATION_ACTION_<ACTION_TOKEN>_HOST`, `_PORT`, and `_URL`; the token is the normalized uppercase action name with punctuation replaced by underscores. A name with no ASCII alphanumeric token falls back to `ID_<ACTION_UUID>`, which can be derived only from retrieved details, so prefer clear ASCII action names for linked providers. Providers must be required, must start before consumers, and action names must map to unique tokens. Launcher validates linked references structurally before registration. The placeholder may appear in the stored command/mirror, but its resolved runtime value is never persisted there.
 
 ```sh
 launch --create "Shop full stack" "Start the local database, API, and frontend" \
@@ -193,7 +193,7 @@ launch action add "Shop full stack" frontend "Vite frontend" \
   --port-name frontend \
   --url 'http://${HOST}:${PORT}/' \
   --health 'http://${HOST}:${PORT}/' \
-  --env 'VITE_API_URL=${CODEX_LAUNCHER_ACTION_API_URL}' \
+  --env 'VITE_API_URL=${LAUNCH_STATION_ACTION_API_URL}' \
   -- npm run dev -- --host '${HOST}' --port '${PORT}' --strictPort
 
 launch action add "Shop full stack" database "Development database" \
@@ -368,7 +368,7 @@ launch skill uninstall codex|claude-code
 launch skill source [--json]
 ```
 
-Launcher may report detected Codex Desktop/CLI and local Claude Desktop/CLI availability, but those surfaces are informational only and never select a separate install or path. Discovery requires exact signed publisher/bundle identity for installed apps and publisher-authenticated, bounded product-version validation for local CLIs, so a same-named lookalike is unavailable and never probed before signature validation. One Codex product install is shared by Desktop, CLI, and the IDE extension at `~/.agents/skills/codex-launcher`; the IDE reads those same installed files but is not separately detected or reported by Launcher because it is not another destination. One Claude product install is shared at `~/.claude/skills/codex-launcher`. Install is host-only. Unsafe or unavailable products are refused; reinstallation changes only managed files and preserves sibling skills.
+Launcher may report detected Codex Desktop/CLI and local Claude Desktop/CLI availability, but those surfaces are informational only and never select a separate install or path. Discovery requires exact signed publisher/bundle identity for installed apps and publisher-authenticated, bounded product-version validation for local CLIs, so a same-named lookalike is unavailable and never probed before signature validation. One Codex product install is shared by Desktop, CLI, and the IDE extension at `~/.agents/skills/launchstation`; the IDE reads those same installed files but is not separately detected or reported by Launcher because it is not another destination. One Claude product install is shared at `~/.claude/skills/launchstation`. Install is host-only. Unsafe or unavailable products are refused; reinstallation changes only managed files and preserves sibling skills.
 
 Uninstall is product- and receipt-bound. It requires a TTY and exact displayed confirmation for the selected product install, presents receipt-backed removable/preserved paths, then removes only proven managed files. Inspection fails closed for unsafe/changing trees or beyond 4,096 entries, 24 levels, or 64 MiB hashed; no file is removed on failure. Codex auto-detects installs. Claude Code observes live changes unless installation newly created its top-level skills directory; restart it in that case.
 

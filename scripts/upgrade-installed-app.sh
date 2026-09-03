@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-LABEL="com.jakemawson.codex-launcher.service"
-BUNDLE_ID="com.jakemawson.codex-launcher"
+LABEL="com.jakemawson.launchstation.service"
+BUNDLE_ID="com.jakemawson.launchstation"
 RELEASE_VERIFIER="$ROOT/scripts/verify-release-app.sh"
 RELEASE_TRUST_POLICY="$ROOT/Resources/ReleaseTrustPolicy.plist"
 RELEASE_POLICY_LIBRARY="$ROOT/scripts/release-trust-policy.zsh"
@@ -68,7 +68,7 @@ while (( $# > 0 )); do
   esac
 done
 
-SOURCE_APP="${SOURCE_APP_ARGUMENT:-$ROOT/dist/release/Codex Launcher.app}"
+SOURCE_APP="${SOURCE_APP_ARGUMENT:-$ROOT/dist/release/Launch Station.app}"
 LAUNCH_AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
 DOMAIN="gui/$CURRENT_UID"
 DEST_APP=""
@@ -78,13 +78,13 @@ CURRENT_APP=""
 CURRENT_CLI=""
 RELOCATE_ROOT_OWNED_APP=0
 CLI_LINK="$HOME/bin/launch"
-STATE_ROOT="$HOME/Library/Application Support/Codex Launcher"
+STATE_ROOT="$HOME/Library/Application Support/Launch Station"
 DATABASE="$STATE_ROOT/launcher.sqlite3"
 TRANSACTION_ROOT="$STATE_ROOT/Upgrade Transactions"
 LOCK_DIRECTORY="$TRANSACTION_ROOT/.upgrade-lock"
 EXPECTED_HELPER=""
-EXPECTED_STDOUT="$HOME/Library/Logs/Codex Launcher/service.log"
-EXPECTED_STDERR="$HOME/Library/Logs/Codex Launcher/service-error.log"
+EXPECTED_STDOUT="$HOME/Library/Logs/Launch Station/service.log"
+EXPECTED_STDERR="$HOME/Library/Logs/Launch Station/service-error.log"
 EXPECTED_PATH="$HOME/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 require_real_directory() {
@@ -166,11 +166,11 @@ fi
 [[ "$launch_agent_program" != *$'\n'* && "$launch_agent_program" != *$'\r'* ]] || \
   fail "Existing LaunchAgent daemon path is malformed: $LAUNCH_AGENT"
 case "$launch_agent_program" in
-  /*/Contents/Helpers/codex-launcherd)
-    CURRENT_APP="${launch_agent_program%/Contents/Helpers/codex-launcherd}"
+  /*/Contents/Helpers/launchstationd)
+    CURRENT_APP="${launch_agent_program%/Contents/Helpers/launchstationd}"
     ;;
   *)
-    fail "Existing LaunchAgent daemon path is not a Codex Launcher app helper: $launch_agent_program"
+    fail "Existing LaunchAgent daemon path is not a Launch Station app helper: $launch_agent_program"
     ;;
 esac
 if ! [[ "$CURRENT_APP" != "/" && "${CURRENT_APP:t}" == *.app ]]; then
@@ -181,18 +181,18 @@ require_real_directory "${CURRENT_APP:h}"
 CURRENT_APP_OWNER_UID=$(/usr/bin/stat -f '%u' "$CURRENT_APP") || \
   fail "Could not identify installed application owner: $CURRENT_APP"
 DEST_APP="$CURRENT_APP"
-if [[ "$CURRENT_APP" == "/Applications/Codex Launcher.app" && "$CURRENT_APP_OWNER_UID" == 0 ]]; then
+if [[ "$CURRENT_APP" == "/Applications/Launch Station.app" && "$CURRENT_APP_OWNER_UID" == 0 ]]; then
   # A standard user must not try to replace or remove a root-owned legacy bundle. Install the
   # trusted replacement into the invoking user's Applications directory and repoint only the
   # existing per-user LaunchAgent and CLI contract. The legacy system bundle remains untouched.
   RELOCATE_ROOT_OWNED_APP=1
-  DEST_APP="$HOME/Applications/Codex Launcher.app"
+  DEST_APP="$HOME/Applications/Launch Station.app"
 elif [[ ! -w "${CURRENT_APP:h}" ]]; then
   fail "Installed application parent is not writable and is not the supported root-owned legacy location: ${CURRENT_APP:h}"
 fi
 CURRENT_CLI="$CURRENT_APP/Contents/Resources/bin/launch"
 INSTALLED_CLI="$DEST_APP/Contents/Resources/bin/launch"
-GUI_EXECUTABLE="$CURRENT_APP/Contents/MacOS/CodexLauncher"
+GUI_EXECUTABLE="$CURRENT_APP/Contents/MacOS/LaunchStation"
 EXPECTED_HELPER="$launch_agent_program"
 
 if [[ -e "$TRANSACTION_ROOT" || -L "$TRANSACTION_ROOT" ]]; then
@@ -203,16 +203,16 @@ fi
 /bin/chmod 0700 "$TRANSACTION_ROOT"
 
 if ! /bin/mkdir -m 0700 "$LOCK_DIRECTORY" 2>/dev/null; then
-  fail "Another Codex Launcher upgrade is active, or a prior upgrade lock needs inspection: $LOCK_DIRECTORY"
+  fail "Another Launch Station upgrade is active, or a prior upgrade lock needs inspection: $LOCK_DIRECTORY"
 fi
 lock_acquired=1
 transaction="$TRANSACTION_ROOT/$(date -u +%Y%m%dT%H%M%SZ)-$$"
 /bin/mkdir -m 0700 "$transaction"
-STAGED_APP="$transaction/Codex Launcher.app"
+STAGED_APP="$transaction/Launch Station.app"
 SWAP_BINARY="$transaction/atomic-directory-swap"
 LEGACY_DATABASE_BACKUP="$transaction/launcher-schema-1.sqlite3"
 STAGED_LAUNCH_AGENT="$transaction/$LABEL.plist"
-CLI_LINK_CANDIDATE="$HOME/bin/.launch.codex-launcher-upgrade-$$"
+CLI_LINK_CANDIDATE="$HOME/bin/.launch.launchstation-upgrade-$$"
 
 reservation_token=""
 service_booted_out=0
@@ -263,7 +263,7 @@ valid = (
     and value.get("EnvironmentVariables", {}).get("PATH") == expected_path
 )
 if not valid:
-    raise SystemExit("LaunchAgent identity or managed paths do not match Codex Launcher")
+    raise SystemExit("LaunchAgent identity or managed paths do not match Launch Station")
 ' "$plist" "$LABEL" "$helper" "$BUNDLE_ID" "$EXPECTED_STDOUT" "$EXPECTED_STDERR" "$EXPECTED_PATH"
 }
 
@@ -568,11 +568,11 @@ if [[ "$RELOCATE_ROOT_OWNED_APP" == 1 ]]; then
     fail "Temporary CLI-link path already exists: $CLI_LINK_CANDIDATE"
 
   /bin/cp -p "$LAUNCH_AGENT" "$STAGED_LAUNCH_AGENT"
-  /usr/bin/plutil -replace ProgramArguments.0 -string "$DEST_APP/Contents/Helpers/codex-launcherd" \
+  /usr/bin/plutil -replace ProgramArguments.0 -string "$DEST_APP/Contents/Helpers/launchstationd" \
     "$STAGED_LAUNCH_AGENT"
   /usr/bin/plutil -lint "$STAGED_LAUNCH_AGENT" >/dev/null || \
     fail "Relocated LaunchAgent staging file is invalid: $STAGED_LAUNCH_AGENT"
-  verify_launch_agent_contract "$STAGED_LAUNCH_AGENT" "$DEST_APP/Contents/Helpers/codex-launcherd" || \
+  verify_launch_agent_contract "$STAGED_LAUNCH_AGENT" "$DEST_APP/Contents/Helpers/launchstationd" || \
     fail "Relocated LaunchAgent staging contract is invalid."
   staged_launch_agent_identity=$(regular_file_identity "$STAGED_LAUNCH_AGENT") || \
     fail "Could not identify staged relocated LaunchAgent: $STAGED_LAUNCH_AGENT"
@@ -580,8 +580,8 @@ if [[ "$RELOCATE_ROOT_OWNED_APP" == 1 ]]; then
     fail "Could not identify existing LaunchAgent: $LAUNCH_AGENT"
 fi
 
-env CLANG_MODULE_CACHE_PATH=/tmp/codex-launcher-upgrade-clang-cache \
-  SWIFT_MODULE_CACHE_PATH=/tmp/codex-launcher-upgrade-swift-cache \
+env CLANG_MODULE_CACHE_PATH=/tmp/launchstation-upgrade-clang-cache \
+  SWIFT_MODULE_CACHE_PATH=/tmp/launchstation-upgrade-swift-cache \
   /usr/bin/xcrun swiftc "$ROOT/scripts/atomic-directory-swap.swift" -o "$SWAP_BINARY"
 
 "$SWAP_BINARY" validate "$SOURCE_APP"
@@ -595,7 +595,7 @@ env CLANG_MODULE_CACHE_PATH=/tmp/codex-launcher-upgrade-clang-cache \
   || fail "Existing LaunchAgent not found or unsafe: $LAUNCH_AGENT"
 
 verify_launch_agent_contract "$LAUNCH_AGENT" "$EXPECTED_HELPER" \
-  || fail "LaunchAgent identity or managed paths do not match Codex Launcher."
+  || fail "LaunchAgent identity or managed paths do not match Launch Station."
 
 if [[ -e "$CLI_LINK" || -L "$CLI_LINK" ]]; then
   [[ -L "$CLI_LINK" && "$(readlink "$CLI_LINK")" == "$CURRENT_CLI" ]] \
@@ -606,7 +606,7 @@ fi
 source_id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$SOURCE_APP/Contents/Info.plist")
 dest_id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$CURRENT_APP/Contents/Info.plist")
 [[ "$source_id" == "$BUNDLE_ID" && "$dest_id" == "$BUNDLE_ID" ]] \
-  || fail "Source and installed bundle identities do not match Codex Launcher."
+  || fail "Source and installed bundle identities do not match Launch Station."
 
 source_version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$SOURCE_APP/Contents/Info.plist")
 dest_version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$CURRENT_APP/Contents/Info.plist")
@@ -633,9 +633,9 @@ fi
 /usr/bin/codesign --verify --deep --strict "$SOURCE_APP"
 /usr/bin/codesign --verify --deep --strict "$CURRENT_APP"
 verify_release_app "$SOURCE_APP"
-[[ -f "$SOURCE_APP/Contents/Resources/Skills/codex-launcher/SKILL.md" \
-   && ! -L "$SOURCE_APP/Contents/Resources/Skills/codex-launcher/SKILL.md" ]] \
-  || fail "The packaged app does not contain a safe Codex Launcher skill."
+[[ -f "$SOURCE_APP/Contents/Resources/Skills/launchstation/SKILL.md" \
+   && ! -L "$SOURCE_APP/Contents/Resources/Skills/launchstation/SKILL.md" ]] \
+  || fail "The packaged app does not contain a safe Launch Station skill."
 
 /usr/bin/ditto "$SOURCE_APP" "$STAGED_APP"
 "$SWAP_BINARY" validate "$STAGED_APP"
@@ -657,10 +657,10 @@ fi
 
 gui_pids="$(running_gui_pids)"
 [[ -z "$gui_pids" ]] \
-  || fail "Close the running Codex Launcher app before upgrading (exact PID(s): ${gui_pids//$'\n'/, })." 4
+  || fail "Close the running Launch Station app before upgrading (exact PID(s): ${gui_pids//$'\n'/, })." 4
 
 /bin/launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1 \
-  || fail "The exact Codex Launcher LaunchAgent is not loaded; start it and run launch doctor before upgrading."
+  || fail "The exact Launch Station LaunchAgent is not loaded; start it and run launch doctor before upgrading."
 
 if [[ "$ALLOW_LEGACY_BUILD_2" == 1 ]]; then
   # Build 2 predates the actor-owned reservation endpoint. This explicitly gated migration freezes
@@ -695,7 +695,7 @@ if [[ "$ALLOW_LEGACY_BUILD_2" == 1 ]]; then
 
   gui_pids="$(running_gui_pids)"
   [[ -z "$gui_pids" ]] \
-    || fail "Codex Launcher opened during the build-2 migration barrier (exact PID(s): ${gui_pids//$'\n'/, }). Close it and retry." 4
+    || fail "Launch Station opened during the build-2 migration barrier (exact PID(s): ${gui_pids//$'\n'/, }). Close it and retry." 4
 
   # SQLite's backup API captures the complete logical schema-1 database, including committed WAL
   # content, while the exact legacy daemon remains frozen. This backup is part of the same private
@@ -746,7 +746,7 @@ else
 
   gui_pids="$(running_gui_pids)"
   [[ -z "$gui_pids" ]] \
-    || fail "Codex Launcher opened while the upgrade was being reserved (exact PID(s): ${gui_pids//$'\n'/, }). Close it and retry." 4
+    || fail "Launch Station opened while the upgrade was being reserved (exact PID(s): ${gui_pids//$'\n'/, }). Close it and retry." 4
 
   /bin/launchctl bootout "$DOMAIN" "$LAUNCH_AGENT"
   service_booted_out=1
@@ -768,7 +768,7 @@ verify_release_app "$DEST_APP"
 if [[ "$RELOCATE_ROOT_OWNED_APP" == 1 ]]; then
   launch_agent_transition_started=1
   "$SWAP_BINARY" swap-file "$STAGED_LAUNCH_AGENT" "$LAUNCH_AGENT"
-  verify_launch_agent_contract "$LAUNCH_AGENT" "$DEST_APP/Contents/Helpers/codex-launcherd" || \
+  verify_launch_agent_contract "$LAUNCH_AGENT" "$DEST_APP/Contents/Helpers/launchstationd" || \
     fail "Relocated LaunchAgent contract did not install safely."
 
   previous_cli_target="$CURRENT_CLI"

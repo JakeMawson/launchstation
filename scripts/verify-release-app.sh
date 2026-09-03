@@ -15,7 +15,7 @@ MODE="release"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/verify-release-app.sh --app /absolute/path/Codex\ Launcher.app [--mode release]
+  scripts/verify-release-app.sh --app /absolute/path/Launch\ Station.app [--mode release]
 
 The verifier accepts only notarized Developer ID release bundles. Its publisher
 and 10-character Apple Team ID are pinned in the source-controlled
