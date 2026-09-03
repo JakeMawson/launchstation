@@ -27,7 +27,7 @@ public enum LauncherSkillError: LocalizedError, Equatable {
 /// destinations. The daemon invokes mutations; GUI and CLI clients only call its API.
 public struct LauncherSkillManager: Sendable {
     public static let skillName = "launchstation"
-    public static let version = "1.3.0"
+    public static let version = "1.3.1"
     public static let exportedFileName = "SKILL.md"
     public static let installReceiptFileName = ".launchstation-install-receipt.json"
 

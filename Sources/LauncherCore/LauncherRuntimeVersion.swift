@@ -8,7 +8,7 @@ import Foundation
 /// application bundle. Source builds and XCTest bundles do not have that layout,
 /// so they deliberately retain the minimum compatible development version.
 public enum LauncherRuntimeVersion {
-    public static let developmentFallback = "1.3.0"
+    public static let developmentFallback = "1.3.1"
 
     /// Returns the packaged application's `CFBundleShortVersionString` when this
     /// process is located inside an `.app` bundle, otherwise the development fallback.

@@ -154,4 +154,13 @@ if ! job_is_loaded; then
 fi
 /bin/launchctl kickstart "$DOMAIN/$LABEL"
 
+# Homebrew should not return a successful install while the authenticated local
+# API is still racing launchd startup. This is a read-only catalog request; it
+# neither creates nor rewrites launcher records, and the client has its own
+# bounded readiness/recovery policy.
+LAUNCH_CLI="$APP_PATH/Contents/Resources/bin/launch"
+[[ -x "$LAUNCH_CLI" && ! -L "$LAUNCH_CLI" ]] || fail "application CLI is missing or unsafe"
+"$LAUNCH_CLI" list --json >/dev/null 2>&1 || \
+  fail "the Launch Station service did not become ready after installation"
+
 print -- "Configured Launch Station for the current user. Existing launcher data was not modified."
