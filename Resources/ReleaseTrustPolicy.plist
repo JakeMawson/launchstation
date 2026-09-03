@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Source-controlled release trust anchor. Every release package, verifier,
+      installer, and upgrader reads this exact policy from the checked-out
+      Launcher source tree; a candidate app cannot supply a replacement Team ID
+      or publisher on the command line.
+
+      Keep Configured false until the release owner has a real Developer ID
+      Application certificate. Before the first public release, set it true and
+      replace the empty values with the exact certificate publisher and ten-
+      character Apple Team ID in a reviewed source change. Do not pass these
+      values as installer arguments.
+    -->
+    <key>PolicyVersion</key>
+    <integer>1</integer>
+    <key>Configured</key>
+    <false/>
+    <key>TeamIdentifier</key>
+    <string></string>
+    <key>Publisher</key>
+    <string></string>
+</dict>
+</plist>

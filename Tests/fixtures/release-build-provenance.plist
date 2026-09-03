@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>BuildMode</key>
+  <string>release</string>
+  <key>PackageVersion</key>
+  <string>1.2.0</string>
+  <key>TeamIdentifier</key>
+  <string>ABCDE12345</string>
+  <key>Publisher</key>
+  <string>Example Publisher</string>
+  <key>SigningIdentity</key>
+  <string>Developer ID Application: Example Publisher (ABCDE12345)</string>
+</dict>
+</plist>
