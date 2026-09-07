@@ -44,6 +44,15 @@ CURRENT_UID=$(/usr/bin/id -u)
 [[ "$CURRENT_UID" != "0" && -z "${SUDO_USER:-}" && -z "${SUDO_UID:-}" && -z "${SUDO_COMMAND:-}" ]] || \
   fail "run as the logged-in user without sudo"
 
+# Structured Homebrew install steps run with a sandbox-owned HOME. Resolve the
+# account's real home from the current uid before constructing any managed path.
+RESOLVED_HOME=$(/usr/bin/dscacheutil -q user -a uid "$CURRENT_UID" \
+  | /usr/bin/awk '$1 == "dir:" { sub(/^[^:]+:[[:space:]]*/, ""); print; exit }')
+[[ -n "$RESOLVED_HOME" && "$RESOLVED_HOME" == /* && "$RESOLVED_HOME" != *$'\n'* && "$RESOLVED_HOME" != *$'\r'* ]] || \
+  fail "could not resolve the current user's home directory"
+HOME="$RESOLVED_HOME"
+export HOME
+
 DOMAIN="gui/$CURRENT_UID"
 LAUNCH_AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
 STATE_DIRECTORY="$HOME/Library/Application Support/Launch Station"

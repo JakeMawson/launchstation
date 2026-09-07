@@ -151,6 +151,12 @@ require_no_match "$HOMEBREW_SETUP" 'launcher[.]sqlite3|sqlite3|\.backup|VACUUM|D
   'Homebrew setup helper may access the launcher database'
 require_no_match "$HOMEBREW_SETUP" 'rm[^\n]*(Application Support|STATE_DIRECTORY|LOG_DIRECTORY)' \
   'Homebrew setup helper may remove application data or logs'
+require_match "$HOMEBREW_SETUP" 'dscacheutil[[:space:]]+-q[[:space:]]+user[[:space:]]+-a[[:space:]]+uid' \
+  'Homebrew setup helper does not resolve the real user home outside Homebrew sandbox HOME'
+require_match "$HOMEBREW_SETUP" 'HOME="\$RESOLVED_HOME"' \
+  'Homebrew setup helper does not replace sandbox HOME with the resolved user home'
+require_before "$HOMEBREW_SETUP" 'HOME="\$RESOLVED_HOME"' 'LAUNCH_AGENT=.*\$HOME' \
+  'Homebrew setup helper must resolve the real home before constructing managed paths'
 require_match "$HOMEBREW_SETUP" 'job_is_loaded.*&&.*fail|job_is_loaded.*fail' \
   'Homebrew setup helper does not refuse an active mismatched service contract'
 require_match "$HOMEBREW_SETUP" 'LAUNCH_CLI.*list[[:space:]]+--json' \
