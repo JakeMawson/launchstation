@@ -2,6 +2,11 @@ import Darwin
 import Foundation
 import LauncherCore
 
+guard CommandLine.arguments.count == 1 else {
+    fputs("launchstationd does not accept command-line arguments\n", stderr)
+    exit(2)
+}
+
 private func runDaemon() async throws {
     try LauncherPaths.ensurePrivateDirectory(LauncherPaths.defaultStateDirectory)
     try LauncherPaths.ensurePrivateDirectory(LauncherPaths.logDirectory)
