@@ -48,6 +48,7 @@ DOMAIN="gui/$CURRENT_UID"
 LAUNCH_AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
 STATE_DIRECTORY="$HOME/Library/Application Support/Launch Station"
 LOG_DIRECTORY="$HOME/Library/Logs/Launch Station"
+SERVICE_METADATA="$STATE_DIRECTORY/service.json"
 
 require_real_directory() {
   [[ -d "$1" && ! -L "$1" ]] || fail "$2 must be a real directory: $1"
@@ -63,6 +64,15 @@ require_user_owned() {
 
 job_is_loaded() {
   /bin/launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1
+}
+
+launchd_pid() {
+  /bin/launchctl print "$DOMAIN/$LABEL" 2>/dev/null \
+    | /usr/bin/awk '$1 == "pid" && $2 == "=" { print $3; exit }'
+}
+
+metadata_value() {
+  /usr/bin/plutil -extract "$1" raw -o - "$SERVICE_METADATA" 2>/dev/null || true
 }
 
 if [[ "${LAUNCH_STATION_SETUP_MODE:-}" == "verify-only" ]]; then
@@ -91,6 +101,10 @@ require_real_directory "$APP_PATH" "application bundle"
 require_regular_file "$APP_PATH/Contents/Info.plist" "application Info.plist"
 [[ "$(/usr/bin/plutil -extract CFBundleIdentifier raw -expect string -o - "$APP_PATH/Contents/Info.plist" 2>/dev/null)" == "$EXPECTED_BUNDLE_ID" ]] || \
   fail "application bundle identifier is not $EXPECTED_BUNDLE_ID"
+expected_version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -expect string -o - "$APP_PATH/Contents/Info.plist" 2>/dev/null) || \
+  fail "application bundle version is missing or invalid"
+[[ -n "$expected_version" && "$expected_version" != *$'\n'* && "$expected_version" != *$'\r'* ]] || \
+  fail "application bundle version is missing or invalid"
 [[ -x "$APP_PATH/Contents/Helpers/launchstationd" && ! -L "$APP_PATH/Contents/Helpers/launchstationd" ]] || \
   fail "application daemon is missing or unsafe"
 /usr/bin/codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1 || \
@@ -150,26 +164,49 @@ else
 fi
 
 trap - EXIT INT TERM
-if ! job_is_loaded; then
+previous_pid=""
+service_restarted=false
+restart_pid_must_change=false
+if job_is_loaded; then
+  previous_pid="$(launchd_pid)"
+  if [[ "$previous_pid" == <-> ]]; then
+    restart_pid_must_change=true
+  fi
+
+  # Homebrew has already replaced the app bundle before postflight runs. Force launchd to
+  # restart this exact registered job so the resident daemon cannot remain on the previous
+  # release. Stable managed child processes are recovered by the replacement daemon.
+  /bin/launchctl kickstart -k "$DOMAIN/$LABEL"
+  service_restarted=true
+else
   /bin/launchctl bootstrap "$DOMAIN" "$LAUNCH_AGENT"
+  /bin/launchctl kickstart "$DOMAIN/$LABEL"
 fi
-/bin/launchctl kickstart "$DOMAIN/$LABEL"
 
 # Homebrew should not return a successful install while the authenticated local
-# API is still racing launchd startup. This is a read-only catalog request; it
-# neither creates nor rewrites launcher records, and the client has its own
-# bounded readiness/recovery policy.
+# API is still racing launchd startup or while launchd still reports the former
+# daemon. This is a read-only catalog request; it neither creates nor rewrites
+# launcher records, and the client has its own bounded readiness/recovery policy.
 LAUNCH_CLI="$APP_PATH/Contents/Resources/bin/launch"
 [[ -x "$LAUNCH_CLI" && ! -L "$LAUNCH_CLI" ]] || fail "application CLI is missing or unsafe"
 service_ready=false
 for attempt in {1..30}; do
-  if "$LAUNCH_CLI" list --json >/dev/null 2>&1; then
+  current_pid="$(launchd_pid)"
+  metadata_pid="$(metadata_value pid)"
+  metadata_version="$(metadata_value version)"
+  if [[ "$current_pid" == <-> \
+        && "$metadata_pid" == "$current_pid" \
+        && "$metadata_version" == "$expected_version" \
+        && ( "$service_restarted" != true \
+          || "$restart_pid_must_change" != true \
+          || "$current_pid" != "$previous_pid" ) ]] \
+      && "$LAUNCH_CLI" list --json >/dev/null 2>&1; then
     service_ready=true
     break
   fi
   (( attempt < 30 )) && /bin/sleep 1
 done
 [[ "$service_ready" == "true" ]] || \
-  fail "the Launch Station service did not become ready after installation"
+  fail "the exact Launch Station $expected_version service did not become ready after installation"
 
 print -- "Configured Launch Station for the current user. Existing launcher data was not modified."

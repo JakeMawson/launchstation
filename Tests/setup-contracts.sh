@@ -161,6 +161,18 @@ require_no_match "$HOMEBREW_SETUP" 'ProgramArguments[.]0' \
   'Homebrew setup helper uses plutil array-index replacement, which duplicates the daemon argument'
 require_match "$HOMEBREW_SETUP" 'for[[:space:]]+attempt[[:space:]]+in[[:space:]]+[{]1[.][.]30[}]' \
   'Homebrew setup helper has no bounded readiness retry window'
+require_match "$HOMEBREW_SETUP" 'kickstart[[:space:]]+-k[[:space:]]+"\$DOMAIN/\$LABEL"' \
+  'Homebrew setup helper does not force an already-loaded daemon to restart'
+require_match "$HOMEBREW_SETUP" 'previous_pid=.*launchd_pid' \
+  'Homebrew setup helper does not capture the daemon PID before restart'
+require_match "$HOMEBREW_SETUP" 'current_pid.*!=.*previous_pid' \
+  'Homebrew setup helper does not prove that restart replaced the old daemon PID'
+require_match "$HOMEBREW_SETUP" 'metadata_pid.*==.*current_pid' \
+  'Homebrew setup helper does not match daemon metadata to launchd PID'
+require_match "$HOMEBREW_SETUP" 'metadata_version.*==.*expected_version' \
+  'Homebrew setup helper does not match daemon metadata to the packaged version'
+require_before "$HOMEBREW_SETUP" 'metadata_version.*==.*expected_version' 'LAUNCH_CLI.*list[[:space:]]+--json' \
+  'Homebrew setup helper must prove the new daemon identity before catalog readiness'
 
 # The public verifier has no caller-controlled tool/policy override; test doubles
 # are reachable only through the harness stored under Tests/.
