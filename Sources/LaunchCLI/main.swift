@@ -539,6 +539,7 @@ enum LaunchCommand {
         var runDetails: String?
         var clearRunDetails = false
         var replaceTags: [String]?
+        var endpointLines: [String]?
         var addTags: [String] = []
         var removeTags: [String] = []
         var primary = current.launcher.actions.first(where: { $0.id == current.launcher.primaryActionID })
@@ -555,6 +556,10 @@ enum LaunchCommand {
             case "--clear-tags": replaceTags = []
             case "--add-tag": addTags.append(try parser.requireValue(after: value))
             case "--remove-tag": removeTags.append(try parser.requireValue(after: value))
+            case "--endpoint":
+                if endpointLines == nil { endpointLines = [] }
+                endpointLines?.append(try parser.requireValue(after: value))
+            case "--clear-endpoints": endpointLines = []
             case "--primary-action":
                 guard !changedPrimary else {
                     throw CLIError.usage("--primary-action must appear before action mutation options")
@@ -580,6 +585,12 @@ enum LaunchCommand {
                 changedPrimary = true
             }
         }
+        let replaceEndpoints = try endpointLines.map {
+            try LauncherEndpoint.parseConfigurationLines(
+                $0.joined(separator: "\n"),
+                preserving: current.launcher.endpoints
+            )
+        }
         let patch = LauncherPatchRequest(
             expectedRevision: expected,
             name: newName,
@@ -587,6 +598,7 @@ enum LaunchCommand {
             runDetails: runDetails,
             clearRunDetails: clearRunDetails,
             replaceTags: replaceTags,
+            replaceEndpoints: replaceEndpoints,
             addTags: addTags,
             removeTags: removeTags,
             primaryAction: changedPrimary ? primary : nil,
@@ -1263,6 +1275,12 @@ enum LaunchCommand {
         print("Project: \(detail.project.displayName) — \(detail.project.directory)")
         print("Revision: \(detail.launcher.revision)")
         print("Tags: \(detail.launcher.tags.isEmpty ? "—" : detail.launcher.tags.joined(separator: ", "))")
+        if !detail.launcher.endpoints.isEmpty {
+            print("Named endpoints:")
+            for endpoint in detail.launcher.endpoints {
+                print("  \(endpoint.name): \(endpoint.path)")
+            }
+        }
         if let runDetails = detail.launcher.runDetails { print("Run details: \(runDetails)") }
         for action in detail.launcher.sortedActions {
             print("Action \(action.name) [\(action.runner.rawValue)]")
@@ -1398,7 +1416,8 @@ enum LaunchCommand {
         --set-arg INDEX VALUE, --clear-env, --remove-env KEY, --clear-inherit-env,
         --remove-inherit-env KEY, --clear-health, --clear-url, --clear-app-bundle-id,
         --required/--optional, and --allow-runtime-args/--deny-runtime-args.
-        Launcher update also supports --primary-action ACTION. Put that selector before
+        Launcher update also supports repeatable --endpoint 'Name: /path' and
+        --clear-endpoints, plus --primary-action ACTION. Put that selector before
         action mutation options when selecting and changing an action atomically.
 
         Every command supports --json where applicable. Generated launch_details.md files

@@ -466,6 +466,12 @@ public final class SQLiteStore: @unchecked Sendable {
                 guard proposed.runtimeArguments == current.record.runtimeArguments else {
                     throw SQLiteStoreError.immutableField("Session runtime arguments")
                 }
+                guard proposed.primaryActionID == current.record.primaryActionID else {
+                    throw SQLiteStoreError.immutableField("Session primary action")
+                }
+                guard proposed.endpointSnapshots == current.record.endpointSnapshots else {
+                    throw SQLiteStoreError.immutableField("Session endpoint snapshots")
+                }
                 guard proposed.actionSnapshots == current.record.actionSnapshots else {
                     throw SQLiteStoreError.immutableField("Session action snapshots")
                 }
@@ -728,6 +734,7 @@ public final class SQLiteStore: @unchecked Sendable {
         launcher.name = validated.display
         launcher.normalizedName = validated.normalized
         launcher.tags = LauncherValidation.normalizedTags(launcher.tags)
+        launcher.endpoints = try LauncherValidation.normalizedEndpoints(launcher.endpoints)
         launcher.actions = try launcher.actions.map { action in
             var normalized = action
             let actionName = try LauncherValidation.validatedName(action.name, allowReserved: true)

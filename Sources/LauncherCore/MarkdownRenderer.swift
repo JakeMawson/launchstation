@@ -183,6 +183,14 @@ public struct MarkdownRenderer: Sendable {
             }
             let tags = LauncherValidation.normalizedTags(launcher.tags)
             lines.append("- Tags: \(tags.isEmpty ? "_none_" : tags.map(codeSpan).joined(separator: ", "))")
+            if launcher.endpoints.isEmpty {
+                lines.append("- Named endpoints: _none_")
+            } else {
+                lines.append("- Named endpoints:")
+                for endpoint in launcher.endpoints {
+                    lines.append("  - \(codeSpan(endpoint.name)): \(codeSpan(endpoint.path))")
+                }
+            }
             lines.append("- Revision: \(launcher.revision)")
             lines.append("- Launch: \(codeSpan("launch \(ShellEscaping.quote(launcher.name))"))")
             lines.append("")

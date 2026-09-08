@@ -165,6 +165,8 @@ final class LauncherViewModel: ObservableObject {
         var original: LauncherDetail
         var draft: LauncherRecord
         var tagsText: String
+        var endpointsText: String
+        var endpointsError: String?
         var argumentsText: [UUID: String]
         var argumentsErrors: [UUID: String]
         var isSaving = false
@@ -173,6 +175,8 @@ final class LauncherViewModel: ObservableObject {
             original = detail
             draft = detail.launcher
             tagsText = detail.launcher.tags.joined(separator: ", ")
+            endpointsText = LauncherEndpoint.configurationText(for: detail.launcher.endpoints)
+            endpointsError = nil
             argumentsText = Dictionary(
                 uniqueKeysWithValues: detail.launcher.actions.map { action in
                     (action.id, action.arguments.map(ShellEscaping.quote).joined(separator: " "))
@@ -182,7 +186,7 @@ final class LauncherViewModel: ObservableObject {
         }
 
         var canSave: Bool {
-            !isSaving && argumentsErrors.isEmpty
+            !isSaving && argumentsErrors.isEmpty && endpointsError == nil
         }
     }
 
@@ -966,6 +970,21 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    func setLauncherEditorEndpoints(_ value: String) {
+        updateLauncherEditor { presentation in
+            presentation.endpointsText = value
+            do {
+                presentation.draft.endpoints = try LauncherEndpoint.parseConfigurationLines(
+                    value,
+                    preserving: presentation.draft.endpoints
+                )
+                presentation.endpointsError = nil
+            } catch {
+                presentation.endpointsError = error.localizedDescription
+            }
+        }
+    }
+
     func saveLauncherEditor() async {
         guard var presentation = launcherEditPresentation,
               presentation.canSave else { return }
@@ -986,6 +1005,7 @@ final class LauncherViewModel: ObservableObject {
                 || draft.description != latest.launcher.description
                 || trimmedRunDetails != (latest.launcher.runDetails ?? "")
                 || presentation.tagsText != latest.launcher.tags.joined(separator: ", ")
+                || draft.endpoints != latest.launcher.endpoints
             if metadataChanged {
                 let parsedTags = presentation.tagsText
                     .split(separator: ",")
@@ -999,7 +1019,8 @@ final class LauncherViewModel: ObservableObject {
                         description: draft.description,
                         runDetails: trimmedRunDetails.isEmpty ? nil : trimmedRunDetails,
                         clearRunDetails: trimmedRunDetails.isEmpty,
-                        replaceTags: parsedTags
+                        replaceTags: parsedTags,
+                        replaceEndpoints: draft.endpoints
                     )
                 )
             }

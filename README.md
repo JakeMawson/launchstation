@@ -14,6 +14,8 @@ The Homebrew cask installs the Apple-notarized **Launch Station.app**, the `laun
 
 From **Settings → Application updates**, Launch Station checks the signed GitHub release metadata at launch and every two hours while it is open. A current install stays green even when a transient check is unavailable. When a newer release is found, the panel shows the current-to-new version, a short release-note summary, and expandable full notes. **Update now** runs only the fixed `brew upgrade --cask JakeMawson/tap/launchstation` path; Homebrew validates the cask archive and restarts the registered service while preserving the catalog. Automatic updates are opt-in: they may prepare a detected release, but never restart the app or any launcher until the user chooses **Restart to install update** (or explicitly relaunches Launch Station).
 
+Launchers can also keep optional **named endpoints** such as `Full Simulator: /` and `V2 UI Simulator: /index-v2.html`. Add them in the launcher editor, one `Name: /path` mapping per line. They are immutable session snapshots: when a live session exposes its primary browser endpoint, the Open menu resolves each named path against that exact scheme, host, and port. Endpoint paths cannot contain an external origin, query, fragment, or traversal segment. A single saved endpoint remains available in the Open menu without adding a redundant Launch configuration section; two or more are listed below runtime arguments.
+
 ## What is included
 
 | Component | Installed location | Responsibility |
@@ -578,6 +580,7 @@ launch update NAME \
   [--name NEW_NAME] \
   [--description TEXT] \
   [--run-details TEXT | --clear-run-details] \
+  [--endpoint 'Name: /path']... [--clear-endpoints] \
   [--tags A,B | --clear-tags] \
   [--add-tag TAG] [--remove-tag TAG] \
   [--primary-action ACTION] \
@@ -585,7 +588,7 @@ launch update NAME \
   [--if-revision N] [--json]
 ```
 
-Without `--if-revision`, the CLI retrieves the current launcher and uses that revision. Supplying an explicit revision is useful for automation that must reject stale edits. `--primary-action` selects any existing action by name; when combined with action mutation flags, place it before those flags so the selected action is changed atomically. The action mutation surface includes `--action-name`, `--action-description`, `--cwd`, `--order`, `--type`, `--command`/`--clear-command`, `--executable`/`--clear-executable`, `--arg`/`--append-arg`, `--clear-args`, `--remove-arg`, `--set-arg INDEX VALUE`, `--args-json`, environment add/remove/clear flags, inherited-environment add/remove/clear flags, every port/URL/health/open/app-bundle field, readiness/stop timeouts, required/optional state, and runtime-argument policy. Use `launch action update` when you do not also want to select that action as primary.
+Without `--if-revision`, the CLI retrieves the current launcher and uses that revision. Supplying an explicit revision is useful for automation that must reject stale edits. Repeat `--endpoint 'Name: /path'` to replace the complete ordered mapping, or use `--clear-endpoints` to remove it; unchanged `Name: /path` rows retain their identities. `--primary-action` selects any existing action by name; when combined with action mutation flags, place it before those flags so the selected action is changed atomically. The action mutation surface includes `--action-name`, `--action-description`, `--cwd`, `--order`, `--type`, `--command`/`--clear-command`, `--executable`/`--clear-executable`, `--arg`/`--append-arg`, `--clear-args`, `--remove-arg`, `--set-arg INDEX VALUE`, `--args-json`, environment add/remove/clear flags, inherited-environment add/remove/clear flags, every port/URL/health/open/app-bundle field, readiness/stop timeouts, required/optional state, and runtime-argument policy. Use `launch action update` when you do not also want to select that action as primary.
 
 ### Compound actions
 

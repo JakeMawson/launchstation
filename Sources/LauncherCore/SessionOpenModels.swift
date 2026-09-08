@@ -7,6 +7,7 @@ import Foundation
 /// command, or platform of their own.
 public enum SessionOpenOptionKind: String, Codable, CaseIterable, Sendable {
     case browser
+    case browserEndpoint = "browser-endpoint"
     case application
     case simulator
     case expoIOS = "expo-ios"
@@ -18,7 +19,7 @@ public enum SessionOpenOptionKind: String, Codable, CaseIterable, Sendable {
         case .expoIOS: return "ios"
         case .expoAndroid: return "android"
         case .expoWeb: return "web"
-        case .browser, .application, .simulator: return nil
+        case .browser, .browserEndpoint, .application, .simulator: return nil
         }
     }
 }
@@ -30,6 +31,10 @@ public struct SessionOpenOption: Codable, Equatable, Identifiable, Sendable {
     public var actionID: UUID
     public var kind: SessionOpenOptionKind
     public var label: String
+    /// Endpoint identity from the stored session snapshot. It is meaningful only for
+    /// `.browserEndpoint`; execution still resolves the path from the snapshot rather than
+    /// trusting this presentation value.
+    public var configuredEndpointID: UUID?
     /// Human-readable context only. Execution always re-derives its target from the
     /// stored session/action run and never trusts this value.
     public var detail: String?
@@ -41,6 +46,7 @@ public struct SessionOpenOption: Codable, Equatable, Identifiable, Sendable {
         actionID: UUID,
         kind: SessionOpenOptionKind,
         label: String,
+        configuredEndpointID: UUID? = nil,
         detail: String? = nil
     ) {
         self.id = id
@@ -49,6 +55,7 @@ public struct SessionOpenOption: Codable, Equatable, Identifiable, Sendable {
         self.actionID = actionID
         self.kind = kind
         self.label = label
+        self.configuredEndpointID = configuredEndpointID
         self.detail = detail
     }
 }
@@ -126,6 +133,8 @@ public enum SessionOpenOptionDeriver {
                 return lhs.id.uuidString < rhs.id.uuidString
             }
 
+        let namedEndpoints = session.endpointSnapshots ?? []
+
         return runs.flatMap { run -> [SessionOpenOption] in
             let action = actionsByID[run.actionID]
             let expo = action.map(isExpoAction) ?? false
@@ -155,13 +164,28 @@ public enum SessionOpenOptionDeriver {
                         detail: endpoint.absoluteString
                     ))
                 } else if !expo {
-                    result.append(makeOption(
-                        session: session,
-                        run: run,
-                        kind: .browser,
-                        label: "Open in Browser",
-                        detail: endpoint.absoluteString
-                    ))
+                    if session.primaryActionID == run.actionID, !namedEndpoints.isEmpty {
+                        for namedEndpoint in namedEndpoints {
+                            guard let destination = namedEndpointURL(
+                                endpointURL: endpoint.absoluteString,
+                                path: namedEndpoint.path
+                            ) else { continue }
+                            result.append(makeEndpointOption(
+                                session: session,
+                                run: run,
+                                endpoint: namedEndpoint,
+                                detail: destination.absoluteString
+                            ))
+                        }
+                    } else {
+                        result.append(makeOption(
+                            session: session,
+                            run: run,
+                            kind: .browser,
+                            label: "Open in Browser",
+                            detail: endpoint.absoluteString
+                        ))
+                    }
                 }
             }
 
@@ -200,6 +224,10 @@ public enum SessionOpenOptionDeriver {
         "open-v1:\(actionRunID.uuidString.lowercased()):\(kind.rawValue)"
     }
 
+    public static func endpointOptionID(actionRunID: UUID, endpointID: UUID) -> String {
+        "open-v2:\(actionRunID.uuidString.lowercased()):browser-endpoint:\(endpointID.uuidString.lowercased())"
+    }
+
     public static func isExpoAction(_ action: LaunchAction) -> Bool {
         let executable = action.executable
             .map { URL(fileURLWithPath: $0).lastPathComponent.lowercased() }
@@ -227,6 +255,45 @@ public enum SessionOpenOptionDeriver {
             return nil
         }
         return url
+    }
+
+    /// Resolves a named endpoint from immutable session data. This routine does not accept a
+    /// caller-provided URL: it preserves the running action's origin and replaces only its safe
+    /// stored path.
+    public static func browserURL(for option: SessionOpenOption, in session: SessionRecord) -> URL? {
+        guard (option.kind == .browser || option.kind == .browserEndpoint),
+              let derived = self.option(id: option.id, in: session),
+              derived == option,
+              let run = session.actionRuns.first(where: { $0.id == option.actionRunID && $0.state == .running }) else {
+            return nil
+        }
+
+        switch option.kind {
+        case .browser:
+            return validatedHTTPURL(run.endpointURL)
+        case .browserEndpoint:
+            guard session.primaryActionID == run.actionID,
+                  let endpointID = option.configuredEndpointID,
+                  let namedEndpoint = session.endpointSnapshots?.first(where: { $0.id == endpointID }) else {
+                return nil
+            }
+            return namedEndpointURL(endpointURL: run.endpointURL, path: namedEndpoint.path)
+        case .application, .simulator, .expoIOS, .expoAndroid, .expoWeb:
+            return nil
+        }
+    }
+
+    /// Returns a path-only endpoint on the exact scheme/host/port recorded by a running action.
+    public static func namedEndpointURL(endpointURL: String?, path: String) -> URL? {
+        guard let base = validatedHTTPURL(endpointURL),
+              let safePath = try? LauncherValidation.validatedEndpointPath(path),
+              var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.percentEncodedPath = safePath
+        components.query = nil
+        components.fragment = nil
+        return components.url
     }
 
     /// Builds the only Expo control URL the daemon may call. The host and port come from
@@ -266,6 +333,24 @@ public enum SessionOpenOptionDeriver {
             actionID: run.actionID,
             kind: kind,
             label: label,
+            detail: detail
+        )
+    }
+
+    private static func makeEndpointOption(
+        session: SessionRecord,
+        run: ActionRunRecord,
+        endpoint: LauncherEndpoint,
+        detail: String
+    ) -> SessionOpenOption {
+        SessionOpenOption(
+            id: endpointOptionID(actionRunID: run.id, endpointID: endpoint.id),
+            sessionID: session.id,
+            actionRunID: run.id,
+            actionID: run.actionID,
+            kind: .browserEndpoint,
+            label: "Open \(endpoint.name)",
+            configuredEndpointID: endpoint.id,
             detail: detail
         )
     }

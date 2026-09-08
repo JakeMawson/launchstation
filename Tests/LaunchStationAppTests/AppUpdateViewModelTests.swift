@@ -20,7 +20,7 @@ final class AppUpdateViewModelTests: XCTestCase {
 
     func testNewerReleaseShowsAnAvailableUpdateWithoutStartingHomebrew() async throws {
         let release = AppUpdateRelease(
-            tagName: "v1.3.7",
+            tagName: "v1.3.8",
             releaseNotes: "Adds named browser endpoints."
         )
         let viewModel = makeViewModel(client: FixedUpdateClient(release: release))

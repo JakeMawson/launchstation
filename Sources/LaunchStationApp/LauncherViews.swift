@@ -1042,6 +1042,45 @@ private struct LauncherInspector: View {
                         .accessibilityHint("Quotes and backslash escapes are supported. Leave untouched to preserve an exact session's stored arguments; editing supplies the next launch or relaunch override.")
                     }
                 }
+
+                // One saved destination is useful in the session-open menu but is not enough
+                // information to warrant another permanent inspector section. Once a launcher
+                // has multiple named paths, show the compact mapping immediately below runtime
+                // arguments, matching the user's configuration mental model.
+                if detail.launcher.endpoints.count >= 2 {
+                    ConfigurationRow(label: "Named endpoints") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(detail.launcher.endpoints) { endpoint in
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text("\(endpoint.name):")
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .foregroundStyle(RunwayPalette.carbonText)
+                                    Text(endpoint.path)
+                                        .font(.system(size: 11.5, design: .monospaced))
+                                        .foregroundStyle(RunwayPalette.secondaryText)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            HStack(alignment: .center, spacing: 10) {
+                                Text("They open only against this session’s exact primary endpoint.")
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(RunwayPalette.secondaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 8)
+                                Button {
+                                    viewModel.presentLauncherEditor(for: detail)
+                                } label: {
+                                    Label("EDIT ENDPOINTS", systemImage: "pencil")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .tracking(0.25)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(RunwayPalette.tide)
+                                .accessibilityLabel("Edit named endpoints")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1615,6 +1654,7 @@ private extension SessionOpenOption {
     var symbol: String {
         switch kind {
         case .browser: return "safari"
+        case .browserEndpoint: return "safari"
         case .application: return "app.badge.checkmark"
         case .simulator: return "iphone"
         case .expoIOS: return "iphone"
@@ -2693,6 +2733,13 @@ private struct LauncherEditorSheet: View {
         )
     }
 
+    private var endpointsBinding: Binding<String> {
+        Binding(
+            get: { presentation.endpointsText },
+            set: { value in viewModel.setLauncherEditorEndpoints(value) }
+        )
+    }
+
     private var runDetailsBinding: Binding<String> {
         Binding(
             get: { draft.runDetails ?? "" },
@@ -2766,6 +2813,49 @@ private struct LauncherEditorSheet: View {
                                     .foregroundStyle(RunwayPalette.secondaryText)
                                     .textSelection(.enabled)
                             }
+                        }
+                    }
+
+                    InspectorSection(title: "Named endpoints", symbol: "arrow.triangle.branch") {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Text("Optional, one per line: Name: /path")
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(RunwayPalette.carbonText)
+
+                            ZStack(alignment: .topLeading) {
+                                if presentation.endpointsText.isEmpty {
+                                    Text("Full Simulator: /\nV2 UI Simulator: /index-v2.html\nCompare Models: /compare.html")
+                                        .font(.system(size: 11.5, design: .monospaced))
+                                        .foregroundStyle(RunwayPalette.secondaryText.opacity(0.72))
+                                        .padding(.horizontal, 9)
+                                        .padding(.vertical, 10)
+                                        .allowsHitTesting(false)
+                                }
+                                TextEditor(text: endpointsBinding)
+                                    .font(.system(size: 11.5, design: .monospaced))
+                                    .scrollContentBackground(.hidden)
+                                    .padding(5)
+                                    .accessibilityLabel("Named endpoints, one per line")
+                                    .accessibilityHint("Use Name: /path. Named paths are resolved against the exact primary browser endpoint of future sessions.")
+                            }
+                            .frame(minHeight: 96)
+                            .background(RunwayPalette.fog, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(RunwayPalette.tide.opacity(0.26), lineWidth: 1)
+                            )
+
+                            if let error = presentation.endpointsError {
+                                Label(error, systemImage: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(Color(nsColor: .systemOrange))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Text("A single endpoint stays out of the normal Launch configuration to avoid clutter. Add more named paths here whenever this launcher gains more pages. Paths cannot redirect to another host, include query strings, or navigate with .. segments.")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(RunwayPalette.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
 

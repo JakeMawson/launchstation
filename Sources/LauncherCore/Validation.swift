@@ -7,6 +7,8 @@ public enum LauncherValidationError: LocalizedError, Equatable {
     case invalidDirectory(String)
     case invalidAction(String)
     case invalidPort(String)
+    case invalidEndpoint(String)
+    case duplicateEndpoint(String)
     case duplicateAction(String)
 
     public var errorDescription: String? {
@@ -17,6 +19,8 @@ public enum LauncherValidationError: LocalizedError, Equatable {
         case .invalidDirectory(let path): return "Launch directory is unavailable: \(path)"
         case .invalidAction(let reason): return "Invalid launch action: \(reason)"
         case .invalidPort(let reason): return "Invalid port configuration: \(reason)"
+        case .invalidEndpoint(let reason): return "Invalid named endpoint: \(reason)"
+        case .duplicateEndpoint(let name): return "Named endpoint “\(name)” is duplicated."
         case .duplicateAction(let name): return "An action named “\(name)” already exists in this launcher."
         }
     }
@@ -104,12 +108,82 @@ public enum LauncherValidation {
         return standardized
     }
 
+    public static func normalizedEndpoints(_ endpoints: [LauncherEndpoint]) throws -> [LauncherEndpoint] {
+        guard endpoints.count <= 20 else {
+            throw LauncherValidationError.invalidEndpoint("configure at most 20 named endpoints")
+        }
+        var names = Set<String>()
+        var paths = Set<String>()
+        var identifiers = Set<UUID>()
+        return try endpoints.map { endpoint in
+            let name = try validatedEndpointName(endpoint.name)
+            let path = try validatedEndpointPath(endpoint.path)
+            guard identifiers.insert(endpoint.id).inserted else {
+                throw LauncherValidationError.invalidEndpoint("each endpoint needs a distinct identity")
+            }
+            guard names.insert(normalizeName(name)).inserted else {
+                throw LauncherValidationError.duplicateEndpoint(name)
+            }
+            guard paths.insert(path).inserted else {
+                throw LauncherValidationError.invalidEndpoint("the path \(path) is configured more than once")
+            }
+            return LauncherEndpoint(id: endpoint.id, name: name, path: path)
+        }
+    }
+
+    public static func validatedEndpointName(_ input: String) throws -> String {
+        let display = try validatedName(input, allowReserved: true).display
+        guard !display.contains(":") else {
+            throw LauncherValidationError.invalidEndpoint("names cannot contain a colon")
+        }
+        return display
+    }
+
+    /// Accepts a path only, never an origin, query, fragment, or navigation escape. The stored
+    /// value is its canonical percent-encoded path for safe substitution into a session origin.
+    public static func validatedEndpointPath(_ input: String) throws -> String {
+        let path = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else {
+            throw LauncherValidationError.invalidEndpoint("path is empty")
+        }
+        guard path.count <= 2_048, path.utf8.count <= 8_192 else {
+            throw LauncherValidationError.invalidEndpoint("path is too long")
+        }
+        guard path.hasPrefix("/"), !path.hasPrefix("//") else {
+            throw LauncherValidationError.invalidEndpoint("path must begin with one slash, for example /compare")
+        }
+        guard !path.contains("\\"), !path.contains("?"), !path.contains("#"),
+              !path.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) || CharacterSet.whitespacesAndNewlines.contains($0) }) else {
+            throw LauncherValidationError.invalidEndpoint("use only a relative URL path without whitespace, query, fragment, or backslash")
+        }
+        guard let components = URLComponents(string: "http://endpoint.invalid\(path)"),
+              components.scheme == "http",
+              components.host == "endpoint.invalid",
+              components.query == nil,
+              components.fragment == nil else {
+            throw LauncherValidationError.invalidEndpoint("path is not valid URL path syntax")
+        }
+        let encodedPath = components.percentEncodedPath
+        guard encodedPath.hasPrefix("/"), !encodedPath.hasPrefix("//"),
+              !encodedPath.lowercased().contains("%2f"), !encodedPath.lowercased().contains("%5c") else {
+            throw LauncherValidationError.invalidEndpoint("path cannot contain an encoded slash or backslash")
+        }
+        for segment in encodedPath.split(separator: "/", omittingEmptySubsequences: true) {
+            let decoded = String(segment).removingPercentEncoding ?? String(segment)
+            guard decoded != ".", decoded != ".." else {
+                throw LauncherValidationError.invalidEndpoint("path cannot contain . or .. navigation segments")
+            }
+        }
+        return encodedPath
+    }
+
     public static func validateLauncher(_ launcher: LauncherRecord, project: ProjectRecord) throws {
         _ = try validatedName(launcher.name)
         guard !launcher.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw LauncherValidationError.invalidDescription
         }
         guard !launcher.actions.isEmpty else { throw LauncherValidationError.invalidAction("at least one action is required") }
+        _ = try normalizedEndpoints(launcher.endpoints)
         var actionNames = Set<String>()
         var actionOrders = Set<Int>()
         var linkedEnvironmentBases = Set<String>()

@@ -532,16 +532,18 @@ public actor ProcessSupervisor {
         let message: String
 
         switch context.option.kind {
-        case .browser:
+        case .browser, .browserEndpoint:
             try requireExactOpenOwner(context.run)
-            guard let url = SessionOpenOptionDeriver.validatedHTTPURL(context.run.endpointURL) else {
+            guard let url = SessionOpenOptionDeriver.browserURL(for: context.option, in: session) else {
                 throw ProcessSupervisorError.invalidSessionOpenOption(optionID)
             }
             let opened = await MainActor.run { NSWorkspace.shared.open(url) }
             guard opened else {
                 throw ProcessSupervisorError.sessionOpenUnavailable("the stored browser endpoint could not be opened")
             }
-            message = "Opened the stored endpoint in the default browser."
+            message = context.option.kind == .browserEndpoint
+                ? "Opened \(context.option.label) for the exact running session."
+                : "Opened the stored endpoint in the default browser."
 
         case .application:
             guard context.run.manager == .application,

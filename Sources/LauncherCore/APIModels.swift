@@ -52,6 +52,9 @@ public struct LauncherPatchRequest: Codable, Equatable, Sendable {
     public var runDetails: String?
     public var clearRunDetails: Bool
     public var replaceTags: [String]?
+    /// Replaces the complete ordered named-endpoint configuration when present. Omission leaves
+    /// existing endpoint rows untouched, so older clients remain migration-safe.
+    public var replaceEndpoints: [LauncherEndpoint]?
     public var addTags: [String]
     public var removeTags: [String]
     public var primaryAction: LaunchAction?
@@ -64,6 +67,7 @@ public struct LauncherPatchRequest: Codable, Equatable, Sendable {
         runDetails: String? = nil,
         clearRunDetails: Bool = false,
         replaceTags: [String]? = nil,
+        replaceEndpoints: [LauncherEndpoint]? = nil,
         addTags: [String] = [],
         removeTags: [String] = [],
         primaryAction: LaunchAction? = nil,
@@ -75,6 +79,7 @@ public struct LauncherPatchRequest: Codable, Equatable, Sendable {
         self.runDetails = runDetails
         self.clearRunDetails = clearRunDetails
         self.replaceTags = replaceTags
+        self.replaceEndpoints = replaceEndpoints
         self.addTags = addTags
         self.removeTags = removeTags
         self.primaryAction = primaryAction

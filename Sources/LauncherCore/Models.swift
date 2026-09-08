@@ -43,6 +43,65 @@ public enum ManifestSyncState: String, Codable, CaseIterable, Sendable {
     case failed
 }
 
+/// A named in-app path relative to the primary action's exact active browser endpoint.
+///
+/// The path is deliberately not a full URL: Launch Station combines it only with the
+/// origin recorded by the running action, so a configuration entry cannot redirect a
+/// session-open request to another host.
+public struct LauncherEndpoint: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var path: String
+
+    public init(id: UUID = UUID(), name: String, path: String) {
+        self.id = id
+        self.name = name
+        self.path = path
+    }
+
+    /// Parses the editor/CLI form `Name: /path`, retaining stable endpoint identities when
+    /// a user revises unrelated rows. Blank lines are ignored so an empty optional field
+    /// simply means that this launcher has no named endpoints.
+    public static func parseConfigurationLines(
+        _ text: String,
+        preserving existing: [LauncherEndpoint] = []
+    ) throws -> [LauncherEndpoint] {
+        let previous = try LauncherValidation.normalizedEndpoints(existing)
+        let previousIDs = Dictionary(uniqueKeysWithValues: previous.map {
+            (configurationKey(name: $0.name, path: $0.path), $0.id)
+        })
+
+        var parsed: [LauncherEndpoint] = []
+        for rawLine in text.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            guard let separator = line.firstIndex(of: ":") else {
+                throw LauncherValidationError.invalidEndpoint(
+                    "use one entry per line in the form Name: /path"
+                )
+            }
+            let name = String(line[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let path = String(line[line.index(after: separator)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            parsed.append(LauncherEndpoint(name: name, path: path))
+        }
+
+        return try LauncherValidation.normalizedEndpoints(parsed).map { endpoint in
+            var retained = endpoint
+            retained.id = previousIDs[configurationKey(name: endpoint.name, path: endpoint.path)] ?? endpoint.id
+            return retained
+        }
+    }
+
+    public static func configurationText(for endpoints: [LauncherEndpoint]) -> String {
+        endpoints.map { "\($0.name): \($0.path)" }.joined(separator: "\n")
+    }
+
+    private static func configurationKey(name: String, path: String) -> String {
+        LauncherValidation.normalizeName(name) + "\u{0}" + path
+    }
+}
+
 public struct LauncherRecord: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var projectID: UUID
@@ -51,6 +110,7 @@ public struct LauncherRecord: Codable, Equatable, Identifiable, Sendable {
     public var description: String
     public var runDetails: String?
     public var tags: [String]
+    public var endpoints: [LauncherEndpoint]
     public var actions: [LaunchAction]
     public var primaryActionID: UUID
     public var revision: Int
@@ -65,6 +125,7 @@ public struct LauncherRecord: Codable, Equatable, Identifiable, Sendable {
         description: String,
         runDetails: String? = nil,
         tags: [String] = [],
+        endpoints: [LauncherEndpoint] = [],
         actions: [LaunchAction],
         primaryActionID: UUID? = nil,
         revision: Int = 1,
@@ -78,6 +139,7 @@ public struct LauncherRecord: Codable, Equatable, Identifiable, Sendable {
         self.description = description
         self.runDetails = runDetails
         self.tags = tags
+        self.endpoints = endpoints
         self.actions = actions
         self.primaryActionID = primaryActionID ?? actions.first?.id ?? UUID()
         self.revision = revision
@@ -90,6 +152,58 @@ public struct LauncherRecord: Codable, Equatable, Identifiable, Sendable {
             if $0.order == $1.order { return $0.id.uuidString < $1.id.uuidString }
             return $0.order < $1.order
         }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case projectID
+        case name
+        case normalizedName
+        case description
+        case runDetails
+        case tags
+        case endpoints
+        case actions
+        case primaryActionID
+        case revision
+        case createdAt
+        case updatedAt
+    }
+
+    /// Endpoint configuration was added after the first persisted launcher format. Defaulting
+    /// the missing field keeps every existing launcher record readable without a SQLite rewrite.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        projectID = try container.decode(UUID.self, forKey: .projectID)
+        name = try container.decode(String.self, forKey: .name)
+        normalizedName = try container.decode(String.self, forKey: .normalizedName)
+        description = try container.decode(String.self, forKey: .description)
+        runDetails = try container.decodeIfPresent(String.self, forKey: .runDetails)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        endpoints = try container.decodeIfPresent([LauncherEndpoint].self, forKey: .endpoints) ?? []
+        actions = try container.decode([LaunchAction].self, forKey: .actions)
+        primaryActionID = try container.decode(UUID.self, forKey: .primaryActionID)
+        revision = try container.decode(Int.self, forKey: .revision)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(projectID, forKey: .projectID)
+        try container.encode(name, forKey: .name)
+        try container.encode(normalizedName, forKey: .normalizedName)
+        try container.encode(description, forKey: .description)
+        try container.encodeIfPresent(runDetails, forKey: .runDetails)
+        try container.encode(tags, forKey: .tags)
+        try container.encode(endpoints, forKey: .endpoints)
+        try container.encode(actions, forKey: .actions)
+        try container.encode(primaryActionID, forKey: .primaryActionID)
+        try container.encode(revision, forKey: .revision)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
     }
 }
 
@@ -368,6 +482,12 @@ public struct SessionRecord: Codable, Equatable, Identifiable, Sendable {
     public var launchRole: SessionLaunchRole
     public var projectSnapshot: SessionProjectSnapshot?
     public var runtimeArguments: [String]
+    /// The primary action identity at launch time. It keeps named endpoint configuration bound
+    /// to the exact action that supplied the session's browser endpoint.
+    public var primaryActionID: UUID?
+    /// Immutable named-endpoint configuration captured when this session starts. Existing
+    /// sessions decode as `nil` and retain their normal generic browser destination.
+    public var endpointSnapshots: [LauncherEndpoint]?
     /// Immutable action definitions captured when the session starts. This lets CLOSE
     /// use the same lifecycle policy even if the launcher is edited while it runs.
     public var actionSnapshots: [LaunchAction]?
@@ -386,6 +506,8 @@ public struct SessionRecord: Codable, Equatable, Identifiable, Sendable {
         launchRole: SessionLaunchRole = .primary,
         projectSnapshot: SessionProjectSnapshot? = nil,
         runtimeArguments: [String] = [],
+        primaryActionID: UUID? = nil,
+        endpointSnapshots: [LauncherEndpoint]? = nil,
         actionSnapshots: [LaunchAction]? = nil,
         state: SessionState = .starting,
         actionRuns: [ActionRunRecord] = [],
@@ -401,6 +523,8 @@ public struct SessionRecord: Codable, Equatable, Identifiable, Sendable {
         self.launchRole = launchRole
         self.projectSnapshot = projectSnapshot
         self.runtimeArguments = runtimeArguments
+        self.primaryActionID = primaryActionID
+        self.endpointSnapshots = endpointSnapshots
         self.actionSnapshots = actionSnapshots
         self.state = state
         self.actionRuns = actionRuns
@@ -422,6 +546,8 @@ public struct SessionRecord: Codable, Equatable, Identifiable, Sendable {
         case launchRole
         case projectSnapshot
         case runtimeArguments
+        case primaryActionID
+        case endpointSnapshots
         case actionSnapshots
         case state
         case actionRuns
@@ -440,6 +566,8 @@ public struct SessionRecord: Codable, Equatable, Identifiable, Sendable {
         launchRole = try container.decodeIfPresent(SessionLaunchRole.self, forKey: .launchRole) ?? .primary
         projectSnapshot = try container.decodeIfPresent(SessionProjectSnapshot.self, forKey: .projectSnapshot)
         runtimeArguments = try container.decodeIfPresent([String].self, forKey: .runtimeArguments) ?? []
+        primaryActionID = try container.decodeIfPresent(UUID.self, forKey: .primaryActionID)
+        endpointSnapshots = try container.decodeIfPresent([LauncherEndpoint].self, forKey: .endpointSnapshots)
         actionSnapshots = try container.decodeIfPresent([LaunchAction].self, forKey: .actionSnapshots)
         state = try container.decode(SessionState.self, forKey: .state)
         actionRuns = try container.decodeIfPresent([ActionRunRecord].self, forKey: .actionRuns) ?? []
@@ -458,6 +586,8 @@ public struct SessionRecord: Codable, Equatable, Identifiable, Sendable {
         try container.encode(launchRole, forKey: .launchRole)
         try container.encodeIfPresent(projectSnapshot, forKey: .projectSnapshot)
         try container.encode(runtimeArguments, forKey: .runtimeArguments)
+        try container.encodeIfPresent(primaryActionID, forKey: .primaryActionID)
+        try container.encodeIfPresent(endpointSnapshots, forKey: .endpointSnapshots)
         try container.encodeIfPresent(actionSnapshots, forKey: .actionSnapshots)
         try container.encode(state, forKey: .state)
         try container.encode(actionRuns, forKey: .actionRuns)

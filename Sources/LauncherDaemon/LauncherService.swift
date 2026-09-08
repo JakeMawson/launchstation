@@ -749,6 +749,7 @@ actor LauncherService {
         tags.append(contentsOf: patch.addTags)
         let removals = Set(patch.removeTags.map(LauncherValidation.normalizeName))
         launcher.tags = LauncherValidation.normalizedTags(tags.filter { !removals.contains(LauncherValidation.normalizeName($0)) })
+        if let endpoints = patch.replaceEndpoints { launcher.endpoints = endpoints }
         if let primary = patch.primaryAction {
             guard let index = launcher.actions.firstIndex(where: { $0.id == primary.id }) else {
                 throw ServiceFailure.badRequest("Action patch must retain the ID of an existing action on this launcher.")
@@ -869,6 +870,8 @@ actor LauncherService {
             launchRole: request.mode.launchRole,
             projectSnapshot: SessionProjectSnapshot(project: detail.project),
             runtimeArguments: request.runtimeArguments,
+            primaryActionID: detail.launcher.primaryActionID,
+            endpointSnapshots: detail.launcher.endpoints,
             actionSnapshots: detail.launcher.sortedActions,
             state: .starting
         )
