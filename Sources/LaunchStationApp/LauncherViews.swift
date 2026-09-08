@@ -211,6 +211,7 @@ struct LauncherRootView: View {
         .background(ToolbarTrailingActionSpacerInstaller(configurationToken: toolbarAlignmentToken))
         .task {
             viewModel.startPolling()
+            viewModel.startAppUpdateChecks()
             // With the sidebar visible at launch AppKit otherwise promotes its first text field
             // to first responder. That hid the normal Running / Started Separately sections
             // behind the recent-search state on every fresh launch.
@@ -3401,12 +3402,302 @@ struct LauncherSettingsView: View {
 
             Divider()
 
-            SkillInstallerPanel(viewModel: viewModel)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    SkillInstallerPanel(viewModel: viewModel)
+
+                    Divider()
+
+                    ApplicationUpdatePanel(viewModel: viewModel)
+                }
                 .padding(24)
+            }
         }
-        .frame(width: 650, height: 520)
+        .frame(width: 650, height: 680)
         .background(RunwayPalette.porcelain)
-        .task { await viewModel.refreshLauncherSkillStatus(silent: true) }
+        .task {
+            await viewModel.refreshLauncherSkillStatus(silent: true)
+            viewModel.startAppUpdateChecks()
+        }
+    }
+}
+
+private struct ApplicationUpdatePanel: View {
+    @ObservedObject var viewModel: LauncherViewModel
+
+    private let availableAccent = Color(nsColor: .systemYellow)
+
+    private var isShowingDetails: Binding<Bool> {
+        Binding(
+            get: { viewModel.appUpdateDetailsPresentation != nil },
+            set: { visible in
+                if !visible { viewModel.appUpdateDetailsPresentation = nil }
+            }
+        )
+    }
+
+    private var isUpdateAvailable: Bool {
+        switch viewModel.appUpdateStatus {
+        case .available, .staging, .readyToInstall, .installing, .relaunching:
+            return true
+        case .current, .checking:
+            return false
+        }
+    }
+
+    private var stateLabel: String {
+        switch viewModel.appUpdateStatus {
+        case .current:
+            return "UP TO DATE"
+        case .checking:
+            return "CHECKING FOR UPDATES"
+        case .available:
+            return "UPDATE AVAILABLE"
+        case .staging:
+            return "PREPARING UPDATE"
+        case .readyToInstall:
+            return "UPDATE READY"
+        case .installing:
+            return "INSTALLING UPDATE"
+        case .relaunching:
+            return "RESTARTING LAUNCH STATION"
+        }
+    }
+
+    private var stateSymbol: String {
+        switch viewModel.appUpdateStatus {
+        case .current: return "checkmark.shield.fill"
+        case .checking: return "arrow.triangle.2.circlepath"
+        case .available: return "arrow.down.circle.fill"
+        case .staging: return "arrow.down.to.line.compact"
+        case .readyToInstall: return "arrow.clockwise.circle.fill"
+        case .installing: return "shippingbox.fill"
+        case .relaunching: return "arrow.triangle.2.circlepath.circle.fill"
+        }
+    }
+
+    private var stateColor: Color {
+        isUpdateAvailable ? availableAccent : RunwayPalette.relay
+    }
+
+    var body: some View {
+        InspectorSection(title: "Application updates", symbol: "arrow.triangle.2.circlepath") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(stateLabel, systemImage: stateSymbol)
+                            .font(.system(size: 10.5, weight: .bold))
+                            .tracking(0.45)
+                            .foregroundStyle(stateColor)
+                        updateSummary
+                    }
+
+                    Spacer(minLength: 12)
+
+                    updateAction
+                }
+
+                Divider()
+
+                Toggle(
+                    "Automatically prepare updates",
+                    isOn: $viewModel.automaticAppUpdatesEnabled
+                )
+                .toggleStyle(.switch)
+                .font(.system(size: 11.5, weight: .medium))
+                .accessibilityHint("Checks at launch and every two hours. A prepared update waits for you to restart Launch Station.")
+
+                Text("Automatic updates can download and prepare a new Homebrew release, but never restart Launch Station or interrupt a launcher on their own.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(RunwayPalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .sheet(isPresented: isShowingDetails) {
+            if let release = viewModel.appUpdateDetailsPresentation {
+                AppUpdateDetailsSheet(viewModel: viewModel, release: release)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var updateSummary: some View {
+        switch viewModel.appUpdateStatus {
+        case .current(let version, let lastChecked, let note):
+            Text("Launch Station \(version) is current.")
+                .font(.system(size: 11.5))
+                .foregroundStyle(RunwayPalette.secondaryText)
+            if let lastChecked {
+                Text("Last checked \(lastChecked.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(RunwayPalette.secondaryText)
+            }
+            if let note {
+                Text(note)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(RunwayPalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .checking(let version):
+            Text("Checking whether \(version) is the newest release.")
+                .font(.system(size: 11.5))
+                .foregroundStyle(RunwayPalette.secondaryText)
+        case .available(let release, let message):
+            releaseSummary(release: release, suffix: message)
+        case .staging(let release):
+            releaseSummary(release: release, suffix: "Homebrew is downloading the verified cask; Launch Station will stay open.")
+        case .readyToInstall(let release):
+            releaseSummary(release: release, suffix: "The update is ready. Restarting is your choice.")
+        case .installing(let release):
+            releaseSummary(release: release, suffix: "Homebrew is replacing the app and preserving your launcher catalog.")
+        case .relaunching(let release):
+            releaseSummary(release: release, suffix: "Opening the updated application now.")
+        }
+    }
+
+    private func releaseSummary(release: AppUpdateRelease, suffix: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(LauncherRuntimeVersion.current()) → \(release.displayVersion)")
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(RunwayPalette.carbonText)
+            Text(release.conciseNotes)
+                .font(.system(size: 11.5))
+                .foregroundStyle(RunwayPalette.secondaryText)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let suffix {
+                Text(suffix)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(RunwayPalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button("More information") {
+                viewModel.appUpdateDetailsPresentation = release
+            }
+            .buttonStyle(.link)
+            .font(.system(size: 10.5))
+            .accessibilityLabel("More information about Launch Station \(release.displayVersion)")
+        }
+    }
+
+    @ViewBuilder
+    private var updateAction: some View {
+        switch viewModel.appUpdateStatus {
+        case .current:
+            Button("CHECK AGAIN") {
+                Task { await viewModel.checkForAppUpdate() }
+            }
+            .buttonStyle(UpdateActionButtonStyle(accent: RunwayPalette.relay))
+            .disabled(viewModel.isCheckingForAppUpdate)
+            .accessibilityLabel("Check for Launch Station updates")
+        case .checking:
+            Label("CHECKING…", systemImage: "arrow.triangle.2.circlepath")
+                .font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(RunwayPalette.secondaryText)
+        case .available:
+            Button(viewModel.automaticAppUpdatesEnabled ? "RESTART TO INSTALL UPDATE" : "UPDATE NOW") {
+                Task { await viewModel.installAppUpdate() }
+            }
+            .buttonStyle(UpdateActionButtonStyle(accent: availableAccent))
+            .accessibilityLabel(viewModel.automaticAppUpdatesEnabled ? "Restart to install Launch Station update" : "Update Launch Station now")
+        case .staging:
+            Label("PREPARING…", systemImage: "arrow.down.to.line.compact")
+                .font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(availableAccent)
+        case .readyToInstall:
+            Button("RESTART TO INSTALL UPDATE") {
+                Task { await viewModel.installAppUpdate() }
+            }
+            .buttonStyle(UpdateActionButtonStyle(accent: availableAccent))
+            .accessibilityLabel("Restart to install Launch Station update")
+        case .installing:
+            Label("INSTALLING…", systemImage: "shippingbox.fill")
+                .font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(availableAccent)
+        case .relaunching:
+            Label("RESTARTING…", systemImage: "arrow.triangle.2.circlepath.circle.fill")
+                .font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(availableAccent)
+        }
+    }
+}
+
+private struct UpdateActionButtonStyle: ButtonStyle {
+    var accent: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 10.5, weight: .bold))
+            .tracking(0.35)
+            .foregroundStyle(accent)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(accent.opacity(configuration.isPressed ? 0.22 : 0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(accent.opacity(0.55), lineWidth: 1)
+            )
+    }
+}
+
+private struct AppUpdateDetailsSheet: View {
+    @ObservedObject var viewModel: LauncherViewModel
+    var release: AppUpdateRelease
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Launch Station \(release.displayVersion)")
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundStyle(RunwayPalette.carbonText)
+                    Text("Release notes supplied with the signed Homebrew release.")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(RunwayPalette.secondaryText)
+                }
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 28, height: 28)
+                        .background(RunwayPalette.fog, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close update details")
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 22)
+            .padding(.bottom, 17)
+
+            Divider()
+
+            ScrollView {
+                Text(release.normalizedNotes.isEmpty ? "No release notes were provided for this version." : release.normalizedNotes)
+                    .font(.system(size: 12))
+                    .foregroundStyle(RunwayPalette.carbonText)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(24)
+            }
+
+            Divider()
+
+            HStack {
+                Button("Open release page") {
+                    viewModel.openAppUpdateReleaseNotes(release)
+                }
+                .buttonStyle(.link)
+                Spacer()
+                Button("Done") { dismiss() }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+        }
+        .frame(width: 560, height: 480)
+        .background(RunwayPalette.porcelain)
     }
 }
 

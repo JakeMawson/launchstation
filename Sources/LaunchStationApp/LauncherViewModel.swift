@@ -254,9 +254,23 @@ final class LauncherViewModel: ObservableObject {
     @Published var launcherDeletePresentation: LauncherDeletePresentation?
     @Published private(set) var isPreparingLauncherDeletion = false
     @Published private(set) var isDeletingLauncher = false
+    @Published private(set) var appUpdateStatus: AppUpdateStatus
+    @Published var automaticAppUpdatesEnabled: Bool {
+        didSet {
+            defaults.set(automaticAppUpdatesEnabled, forKey: Self.automaticUpdatesEnabledKey)
+            if automaticAppUpdatesEnabled {
+                Task { [weak self] in await self?.checkForAppUpdate() }
+            }
+        }
+    }
+    @Published var appUpdateDetailsPresentation: AppUpdateRelease?
 
     private let client: LauncherAPIClient
+    private let appUpdateClient: any AppUpdateChecking
+    private let homebrewUpdater: any HomebrewCaskUpdating
+    private let defaults: UserDefaults
     private var pollingTask: Task<Void, Never>?
+    private var appUpdatePollingTask: Task<Void, Never>?
     private var skillStatusRequestGeneration = 0
     private var skillUninstallRequestGeneration = 0
     private var skillUninstallPreparingPresenterID: UUID?
@@ -266,8 +280,21 @@ final class LauncherViewModel: ObservableObject {
     private var lastExternalProcessRequestAt: Date?
     private var activeScopedAlertPresenterIDs: Set<UUID> = []
 
-    init(client: LauncherAPIClient) {
+    private static let automaticUpdatesEnabledKey = "launchstation.appUpdates.automaticEnabled"
+    private static let pendingAutomaticReleaseKey = "launchstation.appUpdates.pendingRelease"
+
+    init(
+        client: LauncherAPIClient,
+        appUpdateClient: any AppUpdateChecking = GitHubReleaseUpdateClient(),
+        homebrewUpdater: any HomebrewCaskUpdating = HomebrewCaskUpdater(),
+        defaults: UserDefaults = .standard
+    ) {
         self.client = client
+        self.appUpdateClient = appUpdateClient
+        self.homebrewUpdater = homebrewUpdater
+        self.defaults = defaults
+        automaticAppUpdatesEnabled = defaults.object(forKey: Self.automaticUpdatesEnabledKey) as? Bool ?? false
+        appUpdateStatus = .current(version: LauncherRuntimeVersion.current(), lastChecked: nil, note: nil)
     }
 
     func scopedAlertMessage(for presenterID: UUID) -> AlertMessage? {
@@ -311,6 +338,7 @@ final class LauncherViewModel: ObservableObject {
 
     deinit {
         pollingTask?.cancel()
+        appUpdatePollingTask?.cancel()
     }
 
     var launchers: [LauncherDetail] {
@@ -503,6 +531,189 @@ final class LauncherViewModel: ObservableObject {
     func stopPolling() {
         pollingTask?.cancel()
         pollingTask = nil
+    }
+
+    /// Starts the user-visible release check separately from catalog polling so an unavailable
+    /// GitHub response can never block lifecycle controls. Checks occur at app start and at most
+    /// every two hours while the app stays open.
+    func startAppUpdateChecks() {
+        guard appUpdatePollingTask == nil else { return }
+        appUpdatePollingTask = Task { [weak self] in
+            await self?.installPendingAutomaticUpdateIfNeeded()
+            guard !Task.isCancelled else { return }
+            await self?.checkForAppUpdate()
+
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 7_200_000_000_000)
+                } catch {
+                    return
+                }
+                await self?.checkForAppUpdate()
+            }
+        }
+    }
+
+    var isCheckingForAppUpdate: Bool {
+        if case .checking = appUpdateStatus { return true }
+        return false
+    }
+
+    var isPreparingAppUpdate: Bool {
+        if case .staging = appUpdateStatus { return true }
+        return false
+    }
+
+    var isInstallingAppUpdate: Bool {
+        switch appUpdateStatus {
+        case .installing, .relaunching: return true
+        case .current, .checking, .available, .staging, .readyToInstall: return false
+        }
+    }
+
+    func checkForAppUpdate() async {
+        guard !isCheckingForAppUpdate, !isPreparingAppUpdate, !isInstallingAppUpdate else { return }
+        let previous = appUpdateStatus
+        let currentVersion = LauncherRuntimeVersion.current()
+        appUpdateStatus = .checking(version: currentVersion)
+
+        do {
+            let release = try await appUpdateClient.latestRelease()
+            guard let availableVersion = release.version,
+                  let installedVersion = AppUpdateVersion(currentVersion) else {
+                throw AppUpdateError.invalidLatestRelease
+            }
+
+            if availableVersion > installedVersion {
+                if automaticAppUpdatesEnabled {
+                    await stageAutomaticUpdate(release)
+                } else {
+                    appUpdateStatus = .available(release: release, message: nil)
+                }
+            } else {
+                clearPendingAutomaticRelease()
+                appUpdateStatus = .current(version: currentVersion, lastChecked: Date(), note: nil)
+            }
+        } catch {
+            if let release = previous.release {
+                appUpdateStatus = .available(
+                    release: release,
+                    message: "Couldn’t refresh release details. The update remains available."
+                )
+            } else {
+                // The requested default is deliberately optimistic and quiet when a transient
+                // check fails: a network issue must not look like a broken installation.
+                appUpdateStatus = .current(
+                    version: currentVersion,
+                    lastChecked: Date(),
+                    note: "Couldn’t reach the update service. Launch Station will check again later."
+                )
+            }
+        }
+    }
+
+    func installAppUpdate() async {
+        guard let release = appUpdateStatus.release else { return }
+        await installAppUpdate(release)
+    }
+
+    func openAppUpdateReleaseNotes(_ release: AppUpdateRelease) {
+        guard let version = release.version,
+              let url = URL(string: "https://github.com/JakeMawson/launchstation/releases/tag/v\(version.description)") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    private func stageAutomaticUpdate(_ release: AppUpdateRelease) async {
+        appUpdateStatus = .staging(release: release)
+        do {
+            try await homebrewUpdater.stage()
+            persistPendingAutomaticRelease(release)
+            appUpdateStatus = .readyToInstall(release: release)
+        } catch {
+            appUpdateStatus = .available(
+                release: release,
+                message: "The update is available but could not be prepared yet. Restart to install will retry Homebrew."
+            )
+        }
+    }
+
+    private func installPendingAutomaticUpdateIfNeeded() async {
+        guard automaticAppUpdatesEnabled,
+              let release = pendingAutomaticRelease(),
+              let pendingVersion = release.version,
+              let installedVersion = AppUpdateVersion(LauncherRuntimeVersion.current()) else {
+            return
+        }
+        guard pendingVersion > installedVersion else {
+            clearPendingAutomaticRelease()
+            return
+        }
+        appUpdateStatus = .readyToInstall(release: release)
+        await installAppUpdate(release)
+    }
+
+    private func installAppUpdate(_ release: AppUpdateRelease) async {
+        guard let expectedVersion = release.version, !isInstallingAppUpdate else { return }
+        appUpdateStatus = .installing(release: release)
+        do {
+            try await homebrewUpdater.install()
+            let installedVersionText = LauncherRuntimeVersion.current()
+            guard let installedVersion = AppUpdateVersion(installedVersionText),
+                  installedVersion >= expectedVersion else {
+                throw AppUpdateError.installedVersionDidNotAdvance(
+                    expected: expectedVersion.description,
+                    actual: installedVersionText
+                )
+            }
+            clearPendingAutomaticRelease()
+            appUpdateStatus = .relaunching(release: release)
+            try await relaunchUpdatedApplication()
+            NSApp.terminate(nil)
+        } catch {
+            appUpdateStatus = .available(
+                release: release,
+                message: "Couldn’t install the update: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func persistPendingAutomaticRelease(_ release: AppUpdateRelease) {
+        guard let data = try? JSONEncoder().encode(release) else { return }
+        defaults.set(data, forKey: Self.pendingAutomaticReleaseKey)
+    }
+
+    private func pendingAutomaticRelease() -> AppUpdateRelease? {
+        guard let data = defaults.data(forKey: Self.pendingAutomaticReleaseKey) else { return nil }
+        return try? JSONDecoder().decode(AppUpdateRelease.self, from: data)
+    }
+
+    private func clearPendingAutomaticRelease() {
+        defaults.removeObject(forKey: Self.pendingAutomaticReleaseKey)
+    }
+
+    private func relaunchUpdatedApplication() async throws {
+        let bundleURL = Bundle.main.bundleURL
+        guard bundleURL.pathExtension.lowercased() == "app" else {
+            throw AppUpdateError.relaunchFailed("The running app is not installed as an application bundle.")
+        }
+        let oldProcessID = ProcessInfo.processInfo.processIdentifier
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.createsNewApplicationInstance = true
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { application, error in
+                if let error {
+                    continuation.resume(throwing: AppUpdateError.relaunchFailed(error.localizedDescription))
+                } else if application?.processIdentifier == oldProcessID {
+                    continuation.resume(throwing: AppUpdateError.relaunchFailed("macOS reused the outgoing app process."))
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private func connectOnLaunch() async {

@@ -40,6 +40,10 @@ let package = Package(
         .testTarget(
             name: "LauncherCoreTests",
             dependencies: ["LauncherCore"]
+        ),
+        .testTarget(
+            name: "LaunchStationAppTests",
+            dependencies: ["LaunchStationApp", "LauncherCore"]
         )
     ]
 )
