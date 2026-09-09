@@ -30,6 +30,7 @@ public actor LauncherAPIClient {
 
     private enum RequestPolicy {
         case safeRead
+        case skillVerification
         case mutation
         case lifecycle
 
@@ -37,6 +38,11 @@ public actor LauncherAPIClient {
             switch self {
             case .safeRead:
                 return 15
+            case .skillVerification:
+                // Signature validation and bounded product-version probes are intentionally
+                // more expensive than catalog reads. Keep their wait bounded, but do not
+                // mistake a healthy daemon doing that work for a transport failure.
+                return 45
             case .mutation:
                 return 30
             case .lifecycle:
@@ -372,7 +378,11 @@ public actor LauncherAPIClient {
     }
 
     public func launcherSkillStatus() async throws -> LauncherSkillStatus {
-        try await request(method: "GET", path: "/v1/skills/status")
+        try await request(
+            method: "GET",
+            path: "/v1/skills/status",
+            policy: .skillVerification
+        )
     }
 
     public func launcherSkillSource() async throws -> LauncherSkillSource {

@@ -27,7 +27,7 @@ public enum LauncherSkillError: LocalizedError, Equatable {
 /// destinations. The daemon invokes mutations; GUI and CLI clients only call its API.
 public struct LauncherSkillManager: Sendable {
     public static let skillName = "launchstation"
-    public static let version = "1.3.7"
+    public static let version = "1.3.8"
     public static let exportedFileName = "SKILL.md"
     public static let installReceiptFileName = ".launchstation-install-receipt.json"
 
@@ -143,6 +143,33 @@ public struct LauncherSkillManager: Sendable {
             skillName: Self.skillName,
             version: try bundledVersion(),
             hosts: try LauncherSkillHost.allCases.map(status(for:))
+        )
+    }
+
+    /// Performs independent product authentication concurrently for daemon status requests.
+    /// Desktop signature validation and CLI version probes may each be slow, but neither host's
+    /// inspection depends on the other. Preserve the stable host order in the response.
+    public func statusConcurrently() async throws -> LauncherSkillStatus {
+        try validateSource()
+        let version = try bundledVersion()
+        let hosts = LauncherSkillHost.allCases
+        var results = Array<LauncherSkillHostStatus?>(repeating: nil, count: hosts.count)
+
+        try await withThrowingTaskGroup(of: (Int, LauncherSkillHostStatus).self) { group in
+            for (index, host) in hosts.enumerated() {
+                group.addTask {
+                    (index, try self.status(for: host))
+                }
+            }
+            for try await (index, status) in group {
+                results[index] = status
+            }
+        }
+
+        return LauncherSkillStatus(
+            skillName: Self.skillName,
+            version: version,
+            hosts: results.compactMap { $0 }
         )
     }
 

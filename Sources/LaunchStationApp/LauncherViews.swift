@@ -1045,13 +1045,14 @@ private struct LauncherInspector: View {
 
                 // One saved destination is useful in the session-open menu but is not enough
                 // information to warrant another permanent inspector section. Once a launcher
-                // has multiple named paths, show the compact mapping immediately below runtime
-                // arguments, matching the user's configuration mental model.
+                // has multiple named paths, show the mapping immediately below runtime
+                // arguments. Each saved destination deliberately receives the same bounded
+                // field treatment as an argument override, rather than reading as loose text.
                 if detail.launcher.endpoints.count >= 2 {
                     ConfigurationRow(label: "Named endpoints") {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 7) {
                             ForEach(detail.launcher.endpoints) { endpoint in
-                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                HStack(alignment: .firstTextBaseline, spacing: 7) {
                                     Text("\(endpoint.name):")
                                         .font(.system(size: 11.5, weight: .medium))
                                         .foregroundStyle(RunwayPalette.carbonText)
@@ -1059,7 +1060,18 @@ private struct LauncherInspector: View {
                                         .font(.system(size: 11.5, design: .monospaced))
                                         .foregroundStyle(RunwayPalette.secondaryText)
                                         .textSelection(.enabled)
+                                    Spacer(minLength: 0)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(RunwayPalette.fog, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .stroke(RunwayPalette.tide.opacity(0.26), lineWidth: 1)
+                                )
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel("Named endpoint \(endpoint.name): \(endpoint.path)")
                             }
                             HStack(alignment: .center, spacing: 10) {
                                 Text("They open only against this session’s exact primary endpoint.")
@@ -3950,6 +3962,14 @@ private struct SkillVerificationSummary: View {
                     Text("Current means every Launcher-managed file and version matched exactly; product discovery is checked separately.")
                         .foregroundStyle(RunwayPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if let warning = viewModel.launcherSkillStatusRefreshWarning {
+                        Label("USING LAST VERIFIED STATUS", systemImage: "clock.arrow.circlepath")
+                            .foregroundStyle(RunwayPalette.ignition)
+                        Text(warning)
+                            .foregroundStyle(RunwayPalette.secondaryText)
+                            .lineLimit(2)
+                    }
 
                     Label("PRODUCT DISCOVERY", systemImage: "rectangle.3.group")
                     .foregroundStyle(RunwayPalette.tide)

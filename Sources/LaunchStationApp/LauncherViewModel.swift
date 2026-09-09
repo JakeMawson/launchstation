@@ -232,6 +232,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var logPresentation: LogPresentation?
     @Published private(set) var launcherSkillStatus: LauncherSkillStatus?
     @Published private(set) var launcherSkillStatusError: String?
+    @Published private(set) var launcherSkillStatusRefreshWarning: String?
     @Published private(set) var installingSkillHosts: Set<LauncherSkillHost> = []
     @Published private(set) var isRefreshingSkillStatus = false
     @Published private(set) var isDownloadingSkill = false
@@ -275,7 +276,8 @@ final class LauncherViewModel: ObservableObject {
     private let defaults: UserDefaults
     private var pollingTask: Task<Void, Never>?
     private var appUpdatePollingTask: Task<Void, Never>?
-    private var skillStatusRequestGeneration = 0
+    private var skillStatusRefreshTask: Task<LauncherSkillStatus, Error>?
+    private var skillStatusRefreshTaskID: UUID?
     private var skillUninstallRequestGeneration = 0
     private var skillUninstallPreparingPresenterID: UUID?
     private var launcherDeleteRequestGeneration = 0
@@ -447,9 +449,7 @@ final class LauncherViewModel: ObservableObject {
 
     var shouldShowSkillPrompt: Bool {
         guard launcherSkillStatusError == nil, let status = launcherSkillStatus else { return false }
-        let available = status.hosts.filter(\.available)
-        if available.isEmpty { return true }
-        return available.contains(where: { $0.state != .current })
+        return status.needsAgentSkillInstallationPrompt
     }
 
     func skillStatus(for host: LauncherSkillHost) -> LauncherSkillHostStatus? {
@@ -1540,29 +1540,58 @@ final class LauncherViewModel: ObservableObject {
         silent: Bool = false,
         presenterID: UUID? = nil
     ) async {
-        skillStatusRequestGeneration &+= 1
-        let generation = skillStatusRequestGeneration
+        let request: Task<LauncherSkillStatus, Error>
+        let ownerID: UUID?
+        if let skillStatusRefreshTask {
+            request = skillStatusRefreshTask
+            ownerID = nil
+        } else {
+            let task = Task { [client] in
+                try await client.launcherSkillStatus()
+            }
+            let taskID = UUID()
+            skillStatusRefreshTask = task
+            skillStatusRefreshTaskID = taskID
+            request = task
+            ownerID = taskID
+        }
         if !silent { isRefreshingSkillStatus = true }
         defer {
             if !silent { isRefreshingSkillStatus = false }
+            if let ownerID, skillStatusRefreshTaskID == ownerID {
+                skillStatusRefreshTask = nil
+                skillStatusRefreshTaskID = nil
+            }
         }
         do {
-            let status = try await client.launcherSkillStatus()
-            guard generation == skillStatusRequestGeneration else { return }
+            let status = try await request.value
             launcherSkillStatus = status
             launcherSkillStatusError = nil
+            launcherSkillStatusRefreshWarning = nil
         } catch is CancellationError {
             return
         } catch {
             if Task.isCancelled { return }
-            guard generation == skillStatusRequestGeneration else { return }
-            launcherSkillStatusError = error.localizedDescription
+            let message = error.localizedDescription
+            if launcherSkillStatus == nil {
+                launcherSkillStatusError = message
+                launcherSkillStatusRefreshWarning = nil
+            } else {
+                // A transient refresh failure must not turn a previously verified product into
+                // an unusable tile. Retain that exact last-known status and make the failure a
+                // non-blocking notice instead.
+                launcherSkillStatusError = nil
+                launcherSkillStatusRefreshWarning = message
+            }
             if !silent {
-                let message = AlertMessage(title: "Skill status unavailable", message: error.localizedDescription)
+                let detail = launcherSkillStatus == nil
+                    ? message
+                    : "\(message)\n\nLauncher is still showing the last verified product status."
+                let alert = AlertMessage(title: "Skill status unavailable", message: detail)
                 if let presenterID {
-                    setScopedAlertMessage(message, for: presenterID)
+                    setScopedAlertMessage(alert, for: presenterID)
                 } else {
-                    alertMessage = message
+                    alertMessage = alert
                 }
             }
         }

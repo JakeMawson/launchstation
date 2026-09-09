@@ -644,6 +644,28 @@ final class LauncherSkillManagerTests: XCTestCase {
         )
     }
 
+    func testConcurrentStatusChecksIndependentHostsInParallel() async throws {
+        let fixture = try makeFixture(codexDetected: true, claudeDetected: true)
+        let probe = ConcurrentInvocationProbe()
+        let manager = LauncherSkillManager(
+            sourceDirectory: fixture.source,
+            homeDirectory: fixture.home,
+            codexDetectionCandidates: [fixture.codexCandidate],
+            claudeCodeDetectionCandidates: [fixture.claudeCandidate],
+            environmentPath: nil,
+            candidateAuthenticator: { _, _, _ in
+                probe.recordSlowAuthentication()
+                return true
+            },
+            transactionHooks: .live
+        )
+
+        let status = try await manager.statusConcurrently()
+
+        XCTAssertEqual(status.hosts.map(\.host), LauncherSkillHost.allCases)
+        XCTAssertGreaterThanOrEqual(probe.maximumConcurrentInvocations, 2)
+    }
+
     private func makeFixture(codexDetected: Bool, claudeDetected: Bool) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("LaunchStation-SkillTests", isDirectory: true)
@@ -805,6 +827,31 @@ final class LauncherSkillManagerTests: XCTestCase {
             if url.lastPathComponent == name { paths.append(url.resolvingSymlinksInPath().path) }
         }
         return paths.sorted()
+    }
+}
+
+private final class ConcurrentInvocationProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var activeInvocations = 0
+    private var peakInvocations = 0
+
+    func recordSlowAuthentication() {
+        lock.lock()
+        activeInvocations += 1
+        peakInvocations = max(peakInvocations, activeInvocations)
+        lock.unlock()
+
+        Thread.sleep(forTimeInterval: 0.15)
+
+        lock.lock()
+        activeInvocations -= 1
+        lock.unlock()
+    }
+
+    var maximumConcurrentInvocations: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return peakInvocations
     }
 }
 

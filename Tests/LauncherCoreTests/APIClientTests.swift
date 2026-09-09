@@ -611,6 +611,60 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(kickstartCount.get(), 0)
     }
 
+    func testSkillStatusUsesDedicatedVerificationTimeoutWithoutRestartingService() async throws {
+        let observedTimeout = LockedBox<TimeInterval?>(nil)
+        let requestCount = LockedBox(0)
+        let kickstartCount = LockedBox(0)
+        let client = try makeClient(
+            handler: { request in
+                requestCount.modify { $0 += 1 }
+                observedTimeout.set(request.timeoutInterval)
+                throw URLError(.timedOut)
+            },
+            serviceKickstarter: { kickstartCount.modify { $0 += 1 } }
+        )
+
+        do {
+            _ = try await client.launcherSkillStatus()
+            XCTFail("Expected the verification request to time out")
+        } catch let error as LauncherAPIError {
+            guard case .transport = error else {
+                return XCTFail("Expected a transport error, got \(error)")
+            }
+        }
+
+        XCTAssertEqual(requestCount.get(), 1)
+        XCTAssertEqual(kickstartCount.get(), 0)
+        XCTAssertEqual(observedTimeout.get(), 45)
+    }
+
+    func testSkillPromptRequiresNoCurrentAvailableProduct() {
+        let currentCodex = LauncherSkillHostStatus(
+            host: .codex,
+            available: true,
+            installationPath: "/tmp/codex",
+            state: .current,
+            message: "current"
+        )
+        let outdatedClaude = LauncherSkillHostStatus(
+            host: .claudeCode,
+            available: true,
+            installationPath: "/tmp/claude",
+            state: .outdated,
+            message: "outdated"
+        )
+        var status = LauncherSkillStatus(
+            skillName: "launchstation",
+            version: "test",
+            hosts: [currentCodex, outdatedClaude]
+        )
+
+        XCTAssertFalse(status.needsAgentSkillInstallationPrompt)
+
+        status.hosts[0].available = false
+        XCTAssertTrue(status.needsAgentSkillInstallationPrompt)
+    }
+
     func testSkillInstallUsesOneHostOnlyMutation() async throws {
         let installStatus = LauncherSkillHostStatus(
             host: .codex,

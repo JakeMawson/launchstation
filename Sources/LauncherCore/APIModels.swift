@@ -346,6 +346,11 @@ public struct LauncherSkillHostStatus: Codable, Equatable, Identifiable, Sendabl
 
     public var id: LauncherSkillHost { host }
     public var needsInstallation: Bool { available && state != .current && state != .blocked }
+    /// A product is usable only when Launcher can currently authenticate one of its local
+    /// surfaces and the shared skill bytes have been verified as current.
+    public var hasVerifiedAvailableInstallation: Bool {
+        available && state == .current
+    }
 
     public func surfaceStatus(for surface: LauncherSkillSurface) -> LauncherSkillSurfaceStatus? {
         surfaces.first { $0.surface == surface }
@@ -410,6 +415,12 @@ public struct LauncherSkillStatus: Codable, Equatable, Sendable {
         self.skillName = skillName
         self.version = version
         self.hosts = hosts
+    }
+
+    /// The main-window call-to-action is useful only until one supported product has a
+    /// verified, usable copy. Other product tiles remain available for voluntary updates.
+    public var needsAgentSkillInstallationPrompt: Bool {
+        !hosts.contains(where: \.hasVerifiedAvailableInstallation)
     }
 }
 

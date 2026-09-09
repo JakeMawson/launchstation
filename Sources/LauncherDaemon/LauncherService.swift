@@ -251,7 +251,7 @@ actor LauncherService {
         }
         let manager = try requireSkillManager()
         let refreshTask = Task.detached(priority: .utility) {
-            var status = try manager.status()
+            var status = try await manager.statusConcurrently()
             status.hosts = status.hosts.map { hostStatus in
                 var enriched = hostStatus
                 let inspection = manager.inspectUninstall(host: hostStatus.host)
