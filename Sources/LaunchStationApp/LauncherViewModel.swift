@@ -299,7 +299,9 @@ final class LauncherViewModel: ObservableObject {
         self.appUpdateClient = appUpdateClient
         self.homebrewUpdater = homebrewUpdater
         self.defaults = defaults
-        automaticAppUpdatesEnabled = defaults.object(forKey: Self.automaticUpdatesEnabledKey) as? Bool ?? false
+        // New installations opt in to background preparation. An explicitly persisted false
+        // remains an opt-out rather than being overwritten by a future app launch.
+        automaticAppUpdatesEnabled = defaults.object(forKey: Self.automaticUpdatesEnabledKey) as? Bool ?? true
         appUpdateStatus = .current(version: LauncherRuntimeVersion.current(), lastChecked: nil, note: nil)
     }
 

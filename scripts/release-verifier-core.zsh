@@ -12,7 +12,10 @@ release_verifier_core_fail() {
 release_verifier_has_exact_line() {
   local haystack="$1"
   local expected="$2"
-  print -r -- "$haystack" | /usr/bin/grep -Fqx -- "$expected"
+  # Do not use grep -q here: under pipefail, grep closes the pipe as soon as it
+  # finds an early match and can make print report SIGPIPE for real codesign output.
+  # Reading the complete captured output keeps this exact-line check deterministic.
+  print -r -- "$haystack" | /usr/bin/grep -Fx -- "$expected" >/dev/null
 }
 
 # Arguments:

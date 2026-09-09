@@ -362,6 +362,8 @@ run_verifier() {
 
 run_verifier trusted notarized > "$ARTIFACTS/trusted-release.txt" 2>&1 || \
   fail 'trusted Developer ID/notarized release fixture was rejected'
+run_verifier trusted-large notarized > "$ARTIFACTS/trusted-large-release.txt" 2>&1 || \
+  fail 'trusted large-signature Developer ID/notarized release fixture was rejected'
 expect_rejected 'ad-hoc release fixture' "$ARTIFACTS/adhoc.txt" \
   run_verifier adhoc notarized
 /usr/bin/plutil -replace BuildMode -string development "$APP/Contents/Resources/BuildProvenance.plist"

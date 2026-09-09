@@ -32,6 +32,16 @@ if (( $# == 3 )) \
       print -u2 -- 'Timestamp=Jul 18, 2026 at 10:00:00 AM'
       print -u2 -- 'Signature=authority'
       ;;
+    trusted-large)
+      print -u2 -- 'Authority=Developer ID Application: Example Publisher (ABCDE12345)'
+      print -u2 -- 'Identifier=com.jakemawson.launchstation'
+      print -u2 -- 'TeamIdentifier=ABCDE12345'
+      print -u2 -- 'flags=0x10000(runtime)'
+      print -u2 -- 'Timestamp=Jul 18, 2026 at 10:00:00 AM'
+      for _ in {1..4096}; do
+        print -u2 -- 'SignaturePadding=the-verifier-must-read-complete-signed-output'
+      done
+      ;;
     trusted-no-timestamp)
       print -u2 -- 'Authority=Developer ID Application: Example Publisher (ABCDE12345)'
       print -u2 -- 'Identifier=com.jakemawson.launchstation'

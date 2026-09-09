@@ -5,6 +5,17 @@ import XCTest
 
 @MainActor
 final class AppUpdateViewModelTests: XCTestCase {
+    func testAutomaticUpdatePreparationDefaultsOnButPreservesAnExplicitOptOut() {
+        let defaultedViewModel = makeViewModel(client: FailingUpdateClient())
+        XCTAssertTrue(defaultedViewModel.automaticAppUpdatesEnabled)
+
+        let optOutViewModel = makeViewModel(
+            client: FailingUpdateClient(),
+            automaticUpdatesEnabled: false
+        )
+        XCTAssertFalse(optOutViewModel.automaticAppUpdatesEnabled)
+    }
+
     func testUnavailableCheckKeepsTheDefaultCurrentState() async throws {
         let viewModel = makeViewModel(client: FailingUpdateClient())
 
@@ -20,10 +31,13 @@ final class AppUpdateViewModelTests: XCTestCase {
 
     func testNewerReleaseShowsAnAvailableUpdateWithoutStartingHomebrew() async throws {
         let release = AppUpdateRelease(
-            tagName: "v1.3.9",
+            tagName: "v1.3.10",
             releaseNotes: "Adds named browser endpoints."
         )
-        let viewModel = makeViewModel(client: FixedUpdateClient(release: release))
+        let viewModel = makeViewModel(
+            client: FixedUpdateClient(release: release),
+            automaticUpdatesEnabled: false
+        )
 
         await viewModel.checkForAppUpdate()
 
@@ -34,12 +48,18 @@ final class AppUpdateViewModelTests: XCTestCase {
         XCTAssertNil(message)
     }
 
-    private func makeViewModel(client: any AppUpdateChecking) -> LauncherViewModel {
+    private func makeViewModel(
+        client: any AppUpdateChecking,
+        automaticUpdatesEnabled: Bool? = nil
+    ) -> LauncherViewModel {
         let metadataURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("LaunchStationAppTests")
             .appendingPathComponent(UUID().uuidString)
             .appendingPathComponent("service.json")
         let defaults = UserDefaults(suiteName: "LaunchStationAppTests.\(UUID().uuidString)")!
+        if let automaticUpdatesEnabled {
+            defaults.set(automaticUpdatesEnabled, forKey: "launchstation.appUpdates.automaticEnabled")
+        }
         return LauncherViewModel(
             client: LauncherAPIClient(metadataURL: metadataURL),
             appUpdateClient: client,
