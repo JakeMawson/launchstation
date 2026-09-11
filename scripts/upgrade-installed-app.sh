@@ -568,7 +568,7 @@ if [[ "$RELOCATE_ROOT_OWNED_APP" == 1 ]]; then
     fail "Temporary CLI-link path already exists: $CLI_LINK_CANDIDATE"
 
   /bin/cp -p "$LAUNCH_AGENT" "$STAGED_LAUNCH_AGENT"
-  /usr/bin/plutil -replace ProgramArguments.0 -string "$DEST_APP/Contents/Helpers/launchstationd" \
+  /usr/bin/plutil -replace ProgramArguments -json "[\"$DEST_APP/Contents/Helpers/launchstationd\"]" \
     "$STAGED_LAUNCH_AGENT"
   /usr/bin/plutil -lint "$STAGED_LAUNCH_AGENT" >/dev/null || \
     fail "Relocated LaunchAgent staging file is invalid: $STAGED_LAUNCH_AGENT"

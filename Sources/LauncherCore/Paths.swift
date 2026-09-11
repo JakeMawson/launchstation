@@ -71,24 +71,39 @@ public enum LauncherPaths {
     }
 
     public static func kickstartService() throws {
+        guard ProcessInfo.processInfo.environment["LAUNCH_STATION_STATE_DIR"] == nil else {
+            throw LauncherAPIError.serviceUnavailable("An isolated state directory requires its own explicitly managed daemon.")
+        }
+        try ensureServiceRegistered(run: runLaunchctl, restore: { try ServiceRegistration.restoreIfNeeded() })
+    }
+
+    static func ensureServiceRegistered(
+        run: ([String]) throws -> (status: Int32, message: String),
+        restore: () throws -> Void
+    ) throws {
         // Never use `-k` here: clients may still be reading the previous daemon's metadata while
         // launchd has already started a replacement that is reconciling persisted sessions. A
         // destructive kickstart from a polling GUI could otherwise kill every replacement before
         // it publishes fresh metadata. Plain kickstart starts an idle job and leaves a live one.
-        let initialKickstart = try runLaunchctl(serviceKickstartArguments())
+        let initialKickstart = try run(serviceKickstartArguments())
         if initialKickstart.status == 0 { return }
 
         // A user may terminate the daemon by unloading its job while leaving the installed
         // LaunchAgent intact. Recover that exact installed definition, then ask launchd to start
         // the exact label again. A concurrent client may win the bootstrap race, so the final
         // kickstart is authoritative rather than the bootstrap exit status by itself.
-        guard FileManager.default.fileExists(atPath: launchAgentURL.path) else {
+        // A loaded job must never be replaced/booted out by client recovery. Only repair
+        // the on-disk definition after proving registration is absent.
+        let loaded = try run(["print", "gui/\(getuid())/\(launchAgentLabel)"])
+        guard loaded.status != 0 else {
             throw LauncherAPIError.serviceUnavailable(initialKickstart.message)
         }
-        _ = try runLaunchctl(serviceBootstrapArguments())
-        let recoveredKickstart = try runLaunchctl(serviceKickstartArguments())
+        try restore()
+        let bootstrap = try run(serviceBootstrapArguments())
+        let recoveredKickstart = try run(serviceKickstartArguments())
         guard recoveredKickstart.status == 0 else {
-            throw LauncherAPIError.serviceUnavailable(recoveredKickstart.message)
+            let detail = bootstrap.status == 0 ? recoveredKickstart.message : "\(bootstrap.message); \(recoveredKickstart.message)"
+            throw LauncherAPIError.serviceUnavailable(detail)
         }
     }
 
@@ -96,10 +111,20 @@ public enum LauncherPaths {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
         let errorPipe = Pipe()
         process.standardError = errorPipe
+        let completed = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in completed.signal() }
         try process.run()
-        process.waitUntilExit()
+        guard completed.wait(timeout: .now() + 5) == .success else {
+            // This is the exact short-lived launchctl child we created, never the daemon.
+            process.terminate()
+            if completed.wait(timeout: .now() + 1) != .success {
+                kill(process.processIdentifier, SIGKILL)
+            }
+            throw LauncherAPIError.serviceUnavailable("launchctl did not respond within five seconds; recovery will retry.")
+        }
         let data = errorPipe.fileHandleForReading.readDataToEndOfFile()
         let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedMessage = message.flatMap { $0.isEmpty ? nil : $0 } ?? "launchctl failed"

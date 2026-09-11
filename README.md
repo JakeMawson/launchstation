@@ -30,6 +30,12 @@ Launchers can also keep optional **named endpoints** such as `Full Simulator: /`
 
 The app and CLI never edit SQLite or `launch_details.md` directly. They send authenticated requests to the daemon over a loopback-only HTTP API.
 
+## Service recovery
+
+Launch Station 1.3.10 restores a missing or malformed per-user LaunchAgent from the verified signed app in Applications, preserving the previous definition for recovery. The service automatically restarts after exit. Clients wait for authenticated readiness and reconnect after a daemon replacement without killing a healthy service or replaying an ambiguous launch, stop, or write. A recovered connection also clears its obsolete service-error alert.
+
+Recovery remains bounded and preserves explicit errors for an unsafe installation, invalid signature, incompatible metadata, or unavailable operating-system service manager. Isolated development state requires its own explicitly managed daemon and never starts the installed service as a fallback.
+
 ## Requirements
 
 - macOS 13 or newer.

@@ -275,6 +275,7 @@ final class LauncherViewModel: ObservableObject {
     private let homebrewUpdater: any HomebrewCaskUpdating
     private let defaults: UserDefaults
     private var pollingTask: Task<Void, Never>?
+    private var connectionAlertID: UUID?
     private var appUpdatePollingTask: Task<Void, Never>?
     private var skillStatusRefreshTask: Task<LauncherSkillStatus, Error>?
     private var skillStatusRefreshTaskID: UUID?
@@ -529,7 +530,7 @@ final class LauncherViewModel: ObservableObject {
                     break
                 }
                 await self.refresh(silent: true)
-                await self.refreshExternalProcesses(silent: true)
+                if self.isConnected { await self.refreshExternalProcesses(silent: true) }
             }
         }
     }
@@ -752,6 +753,7 @@ final class LauncherViewModel: ObservableObject {
                 title: "Launcher service unavailable",
                 message: error.localizedDescription
             )
+            connectionAlertID = alertMessage?.id
         }
     }
 
@@ -774,6 +776,7 @@ final class LauncherViewModel: ObservableObject {
                     title: "Launcher service unavailable",
                     message: error.localizedDescription
                 )
+                connectionAlertID = alertMessage?.id
             }
         }
     }
@@ -781,6 +784,10 @@ final class LauncherViewModel: ObservableObject {
     private func acceptCatalog(_ catalog: CatalogSnapshot, refreshSkillStatus: Bool) {
         snapshot = catalog
         connectionError = nil
+        if let connectionAlertID, alertMessage?.id == connectionAlertID {
+            alertMessage = nil
+        }
+        connectionAlertID = nil
         lastUpdatedAt = Date()
         reconcileTransientSessions(with: catalog)
         reconcileSelection(with: catalog)

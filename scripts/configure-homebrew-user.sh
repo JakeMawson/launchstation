@@ -150,14 +150,27 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# BEGIN RENDERED_SERVICE_CONTRACT
 /bin/cp "$TEMPLATE" "$temporary_agent"
 daemon_path="$APP_PATH/Contents/Helpers/launchstationd"
 /usr/bin/plutil -replace ProgramArguments -json "[\"$daemon_path\"]" "$temporary_agent"
 /usr/bin/plutil -replace EnvironmentVariables.PATH -string "$HOME/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin" "$temporary_agent"
 /usr/bin/plutil -replace StandardOutPath -string "$LOG_DIRECTORY/service.log" "$temporary_agent"
 /usr/bin/plutil -replace StandardErrorPath -string "$LOG_DIRECTORY/service-error.log" "$temporary_agent"
+/usr/bin/plutil -replace KeepAlive -bool true "$temporary_agent"
 /bin/chmod 0600 "$temporary_agent"
 /usr/bin/plutil -lint "$temporary_agent" >/dev/null
+
+# Syntax alone accepts a top-level array (the observed broken installation).
+# Validate the complete rendered job before publishing anything launchd will use.
+[[ "$(/usr/bin/plutil -extract Label raw -expect string -o - "$temporary_agent")" == "$LABEL" ]] || fail "rendered service label is invalid"
+[[ "$(/usr/bin/plutil -extract ProgramArguments raw -expect array -o - "$temporary_agent")" == 1 \
+  && "$(/usr/bin/plutil -extract ProgramArguments.0 raw -expect string -o - "$temporary_agent")" == "$daemon_path" ]] || fail "rendered daemon arguments are invalid"
+[[ "$(/usr/bin/plutil -extract RunAtLoad raw -expect bool -o - "$temporary_agent")" == true ]] || fail "rendered service must start at login"
+[[ "$(/usr/bin/plutil -extract KeepAlive raw -expect bool -o - "$temporary_agent")" == true ]] || fail "rendered service must restart after exit"
+[[ "$(/usr/bin/plutil -extract StandardOutPath raw -expect string -o - "$temporary_agent")" == "$LOG_DIRECTORY/service.log" ]] || fail "rendered log path is invalid"
+[[ "$(/usr/bin/plutil -extract StandardErrorPath raw -expect string -o - "$temporary_agent")" == "$LOG_DIRECTORY/service-error.log" ]] || fail "rendered error log path is invalid"
+# END RENDERED_SERVICE_CONTRACT
 
 if [[ -e "$LAUNCH_AGENT" || -L "$LAUNCH_AGENT" ]]; then
   require_regular_file "$LAUNCH_AGENT" "installed LaunchAgent"

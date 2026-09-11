@@ -3,6 +3,73 @@ import XCTest
 @testable import LauncherCore
 
 final class APIClientTests: XCTestCase {
+    func testSafeReadWaitsThroughDelayedRecoveryInsteadOfOneFixedDelay() async throws {
+        let probes = LockedBox(0)
+        let reads = LockedBox(0)
+        let kicks = LockedBox(0)
+        let client = try makeClient(handler: { request in
+            if request.url?.path == "/v1/health" {
+                let count = probes.modify { $0 += 1; return $0 }
+                if count < 5 { throw URLError(.cannotConnectToHost) }
+                return try Self.healthResponse(for: request)
+            }
+            let count = reads.modify { $0 += 1; return $0 }
+            if count == 1 { throw URLError(.cannotConnectToHost) }
+            return try Self.response(for: request, body: [LauncherDetail]())
+        }, serviceKickstarter: { kicks.modify { $0 += 1 } }, serviceReadinessMaxAttempts: 6)
+        _ = try await client.listLaunchers()
+        XCTAssertEqual(probes.get(), 5)
+        XCTAssertEqual(reads.get(), 2)
+        XCTAssertEqual(kicks.get(), 1)
+    }
+
+    func testConcurrentStartupRequestsShareOneRecovery() async throws {
+        let kicks = LockedBox(0)
+        let client = try makeClient(handler: { request in
+            Thread.sleep(forTimeInterval: 0.05)
+            return try Self.healthResponse(for: request)
+        }, serviceKickstarter: { kicks.modify { $0 += 1 } })
+        async let first = client.startServiceAndWaitUntilReady()
+        async let second = client.startServiceAndWaitUntilReady()
+        _ = try await (first, second)
+        XCTAssertEqual(kicks.get(), 1)
+    }
+
+    func testUnauthorizedSafeReadRecoversButMutationIsNotReplayed() async throws {
+        let reads = LockedBox(0)
+        let mutations = LockedBox(0)
+        let kicks = LockedBox(0)
+        let client = try makeClient(handler: { request in
+            if request.url?.path == "/v1/health" { return try Self.healthResponse(for: request) }
+            if request.httpMethod == "POST" {
+                mutations.modify { $0 += 1 }
+                return try Self.response(for: request, status: 401, body: EmptyResponse())
+            }
+            let count = reads.modify { $0 += 1; return $0 }
+            if count == 1 { return try Self.response(for: request, status: 401, body: EmptyResponse()) }
+            return try Self.response(for: request, body: [LauncherDetail]())
+        }, serviceKickstarter: { kicks.modify { $0 += 1 } })
+        _ = try await client.listLaunchers()
+        do {
+            _ = try await client.initializeProject(directory: "/tmp/test")
+            XCTFail("Must refuse the mutation")
+        } catch let error as LauncherAPIError {
+            guard case .server(status: 401, code: _, message: _) = error else { return XCTFail("\(error)") }
+        }
+        XCTAssertEqual(reads.get(), 2)
+        XCTAssertEqual(mutations.get(), 1)
+        XCTAssertEqual(kicks.get(), 1)
+    }
+
+    func testRecoveryFailureIsReportedInsteadOfSwallowed() async throws {
+        let expected = LauncherAPIError.serviceUnavailable("registration could not be repaired")
+        let client = try makeClient(handler: { _ in throw URLError(.cannotConnectToHost) }, serviceKickstarter: { throw expected })
+        do {
+            _ = try await client.listLaunchers()
+            XCTFail("Expected repair failure")
+        } catch let error as LauncherAPIError { XCTAssertEqual(error, expected) }
+    }
+
     func testQueryValuesUseStrictDelimiterSafeEncoding() async throws {
         let observedRequest = LockedBox<URLRequest?>(nil)
         let client = try makeClient { request in
@@ -36,6 +103,7 @@ final class APIClientTests: XCTestCase {
                 if attempt == 1 {
                     throw URLError(.cannotConnectToHost)
                 }
+                if request.url?.path == "/v1/health" { return try Self.healthResponse(for: request) }
                 return try Self.response(for: request, body: [LauncherDetail]())
             },
             serviceKickstarter: {
@@ -46,7 +114,7 @@ final class APIClientTests: XCTestCase {
         let launchers = try await client.listLaunchers()
 
         XCTAssertTrue(launchers.isEmpty)
-        XCTAssertEqual(requestCount.get(), 2)
+        XCTAssertEqual(requestCount.get(), 3)
         XCTAssertEqual(kickstartCount.get(), 1)
     }
 
@@ -175,6 +243,7 @@ final class APIClientTests: XCTestCase {
             requestCount.modify { $0 += 1 }
             observedAuthorization.modify { $0.append(request.value(forHTTPHeaderField: "Authorization") ?? "") }
             if requestCount.get() == 1 { throw URLError(.cannotConnectToHost) }
+            if request.url?.path == "/v1/health" { return try Self.healthResponse(for: request) }
             return try Self.response(for: request, body: [LauncherDetail]())
         }
         let client = LauncherAPIClient(
@@ -183,15 +252,14 @@ final class APIClientTests: XCTestCase {
             serviceKickstarter: {
                 kickstartCount.modify { $0 += 1 }
                 try LauncherJSON.encoder().encode(replacement).write(to: metadataURL)
-            },
-            serviceRecoveryDelayNanoseconds: 0
+            }
         )
 
         _ = try await client.listLaunchers()
 
-        XCTAssertEqual(requestCount.get(), 2)
+        XCTAssertEqual(requestCount.get(), 3)
         XCTAssertEqual(kickstartCount.get(), 1)
-        XCTAssertEqual(observedAuthorization.get(), ["Bearer old-token", "Bearer replacement-token"])
+        XCTAssertEqual(observedAuthorization.get(), ["Bearer old-token", "Bearer replacement-token", "Bearer replacement-token"])
     }
 
     func testMutationTransportFailureIsNeverKickstartedOrRetried() async throws {
@@ -242,6 +310,7 @@ final class APIClientTests: XCTestCase {
         )
         let project = ProjectRecord(displayName: "Recovered", directory: "/tmp/example")
         StubURLProtocol.setHandler { request in
+            if request.url?.path == "/v1/health" { return try Self.healthResponse(for: request) }
             requestCount.modify { $0 += 1 }
             return try Self.response(for: request, status: 201, body: project)
         }
@@ -251,8 +320,7 @@ final class APIClientTests: XCTestCase {
             serviceKickstarter: {
                 kickstartCount.modify { $0 += 1 }
                 try LauncherJSON.encoder().encode(metadata).write(to: metadataURL)
-            },
-            serviceRecoveryDelayNanoseconds: 0
+            }
         )
 
         let created = try await client.initializeProject(directory: "/tmp/example")
@@ -288,8 +356,7 @@ final class APIClientTests: XCTestCase {
         let client = LauncherAPIClient(
             metadataURL: metadataURL,
             session: session,
-            serviceKickstarter: { kickstartCount.modify { $0 += 1 } },
-            serviceRecoveryDelayNanoseconds: 0
+            serviceKickstarter: { kickstartCount.modify { $0 += 1 } }
         )
 
         do {
@@ -946,10 +1013,16 @@ final class APIClientTests: XCTestCase {
             metadataURL: metadataURL,
             session: session,
             serviceKickstarter: serviceKickstarter,
-            serviceRecoveryDelayNanoseconds: 0,
             serviceReadinessRetryDelayNanoseconds: 0,
             serviceReadinessMaxAttempts: serviceReadinessMaxAttempts
         )
+    }
+
+    private static func healthResponse(for request: URLRequest) throws -> (HTTPURLResponse, Data) {
+        try response(for: request, body: ServiceStatus(
+            version: LauncherRuntimeVersion.current(), schemaVersion: LauncherSchema.version,
+            pid: 123, startedAt: Date(timeIntervalSince1970: 1), endpoint: "http://127.0.0.1:43210"
+        ))
     }
 
     private static func response<Body: Encodable>(

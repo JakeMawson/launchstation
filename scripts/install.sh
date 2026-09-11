@@ -240,7 +240,7 @@ validate_launch_agent() {
     fail "LaunchAgent has unexpected additional program arguments: $plist"
   fi
   plist_value_equals "$plist" RunAtLoad true bool
-  plist_value_equals "$plist" KeepAlive.SuccessfulExit false bool
+  plist_value_equals "$plist" KeepAlive true bool
   plist_value_equals "$plist" ProcessType Background string
   plist_value_equals "$plist" EnvironmentVariables.LANG en_US.UTF-8 string
   plist_value_equals "$plist" EnvironmentVariables.PATH "$expected_path" string
@@ -256,7 +256,7 @@ validate_launch_agent() {
   top_level_count=$(print -r -- "$printed" | /usr/bin/grep -c '^  "[^"]*" =>')
   nested_key_count=$(print -r -- "$printed" | /usr/bin/grep -c '^    "[^"]*" =>')
   array_item_count=$(print -r -- "$printed" | /usr/bin/grep -c '^    [0-9][0-9]* =>')
-  if [[ "$top_level_count" != "10" || "$nested_key_count" != "3" || "$array_item_count" != "2" ]]; then
+  if [[ "$top_level_count" != "10" || "$nested_key_count" != "2" || "$array_item_count" != "2" ]]; then
     fail "LaunchAgent contains unexpected keys or collection entries: $plist"
   fi
 }
@@ -558,7 +558,7 @@ LAUNCH_AGENT_TMP_IDENTITY=$(path_identity "$LAUNCH_AGENT_TMP") || fail "Could no
 if [[ "$(path_identity "$LAUNCH_AGENT_TMP")" != "$LAUNCH_AGENT_TMP_IDENTITY" ]]; then
   fail "LaunchAgent staging file identity changed while it was rendered"
 fi
-/usr/bin/plutil -replace ProgramArguments.0 -string "$EXPECTED_PROGRAM" "$LAUNCH_AGENT_TMP"
+/usr/bin/plutil -replace ProgramArguments -json "[\"$EXPECTED_PROGRAM\"]" "$LAUNCH_AGENT_TMP"
 /usr/bin/plutil -replace EnvironmentVariables.PATH -string "$EXPECTED_PATH" "$LAUNCH_AGENT_TMP"
 /usr/bin/plutil -replace StandardOutPath -string "$EXPECTED_STDOUT" "$LAUNCH_AGENT_TMP"
 /usr/bin/plutil -replace StandardErrorPath -string "$EXPECTED_STDERR" "$LAUNCH_AGENT_TMP"

@@ -24,18 +24,21 @@ public actor LauncherAPIClient {
     private let metadataURL: URL
     private let session: URLSession
     private let serviceKickstarter: @Sendable () throws -> Void
-    private let serviceRecoveryDelayNanoseconds: UInt64
     private let serviceReadinessRetryDelayNanoseconds: UInt64
     private let serviceReadinessMaxAttempts: Int
+    private var recoveryTask: Task<ServiceStatus, Error>?
 
     private enum RequestPolicy {
         case safeRead
+        case healthProbe
         case skillVerification
         case mutation
         case lifecycle
 
         var timeoutInterval: TimeInterval {
             switch self {
+            case .healthProbe:
+                return 1
             case .safeRead:
                 return 15
             case .skillVerification:
@@ -65,7 +68,6 @@ public actor LauncherAPIClient {
         self.metadataURL = metadataURL
         self.session = session
         self.serviceKickstarter = { try LauncherPaths.kickstartService() }
-        self.serviceRecoveryDelayNanoseconds = 350_000_000
         self.serviceReadinessRetryDelayNanoseconds = 250_000_000
         self.serviceReadinessMaxAttempts = 60
     }
@@ -74,14 +76,12 @@ public actor LauncherAPIClient {
         metadataURL: URL,
         session: URLSession,
         serviceKickstarter: @escaping @Sendable () throws -> Void,
-        serviceRecoveryDelayNanoseconds: UInt64 = 0,
         serviceReadinessRetryDelayNanoseconds: UInt64 = 0,
         serviceReadinessMaxAttempts: Int = 40
     ) {
         self.metadataURL = metadataURL
         self.session = session
         self.serviceKickstarter = serviceKickstarter
-        self.serviceRecoveryDelayNanoseconds = serviceRecoveryDelayNanoseconds
         self.serviceReadinessRetryDelayNanoseconds = serviceReadinessRetryDelayNanoseconds
         self.serviceReadinessMaxAttempts = max(1, serviceReadinessMaxAttempts)
     }
@@ -99,7 +99,7 @@ public actor LauncherAPIClient {
             path: "/v1/health",
             data: nil,
             expectedRevision: nil,
-            policy: .safeRead,
+            policy: .healthProbe,
             retryMetadata: false,
             retryTransport: false
         )
@@ -109,12 +109,28 @@ public actor LauncherAPIClient {
     /// Readiness is bounded so a missing/broken installation becomes an actionable GUI error
     /// instead of an indefinite loading state.
     public func startServiceAndWaitUntilReady() async throws -> ServiceStatus {
+        try Task.checkCancellation()
+        if let recoveryTask {
+            let result = try await recoveryTask.value
+            try Task.checkCancellation()
+            return result
+        }
+        let task = Task { try await self.waitForServiceReadiness() }
+        recoveryTask = task
+        defer { recoveryTask = nil }
+        let result = try await task.value
+        try Task.checkCancellation()
+        return result
+    }
+
+    private func waitForServiceReadiness() async throws -> ServiceStatus {
         try serviceKickstarter()
         var lastError: Error = LauncherAPIError.serviceUnavailable(
             "the launcher service did not become ready"
         )
 
         for attempt in 0..<serviceReadinessMaxAttempts {
+            try Task.checkCancellation()
             do {
                 return try await probeHealth()
             } catch is CancellationError {
@@ -560,6 +576,16 @@ public actor LauncherAPIClient {
             throw LauncherAPIError.invalidResponse
         }
         guard (200..<300).contains(response.statusCode) else {
+            // A daemon replacement rotates credentials. Re-read metadata for safe reads
+            // only; never replay a launch/stop/write after an ambiguous response.
+            if response.statusCode == 401 && retryTransport {
+                try await recoverService()
+                return try await self.request(
+                    method: method, path: path, data: data,
+                    expectedRevision: expectedRevision, policy: policy,
+                    retryMetadata: false, retryTransport: false
+                )
+            }
             if let envelope = try? LauncherJSON.decoder().decode(APIErrorEnvelope.self, from: responseData) {
                 throw LauncherAPIError.server(status: response.statusCode, code: envelope.error.code, message: envelope.error.message)
             }
@@ -576,10 +602,7 @@ public actor LauncherAPIClient {
     }
 
     private func recoverService() async throws {
-        try? serviceKickstarter()
-        if serviceRecoveryDelayNanoseconds > 0 {
-            try await Task.sleep(nanoseconds: serviceRecoveryDelayNanoseconds)
-        }
+        _ = try await startServiceAndWaitUntilReady()
     }
 
     private static let URLComponentAllowed = CharacterSet(

@@ -30,8 +30,10 @@ final class AppUpdateViewModelTests: XCTestCase {
     }
 
     func testNewerReleaseShowsAnAvailableUpdateWithoutStartingHomebrew() async throws {
+        let currentVersion = try XCTUnwrap(AppUpdateVersion(LauncherRuntimeVersion.current()))
+        let newerVersion = "\(currentVersion.components[0] + 1).0.0"
         let release = AppUpdateRelease(
-            tagName: "v1.3.10",
+            tagName: "v\(newerVersion)",
             releaseNotes: "Adds named browser endpoints."
         )
         let viewModel = makeViewModel(
