@@ -10,6 +10,7 @@ RELEASE_TRUST_POLICY="$ROOT/Resources/ReleaseTrustPolicy.plist"
 RELEASE_POLICY_LIBRARY="$ROOT/scripts/release-trust-policy.zsh"
 HOMEBREW_SETUP="$ROOT/scripts/configure-homebrew-user.sh"
 LAUNCH_AGENT_TEMPLATE="$ROOT/Resources/com.jakemawson.launchstation.service.plist"
+APP_ICON="$ROOT/Resources/LaunchStation.icns"
 BUILD_MODE="${LAUNCH_STATION_PACKAGE_MODE:-development}"
 SIGNING_IDENTITY="${LAUNCH_STATION_SIGNING_IDENTITY:-}"
 NOTARY_PROFILE="${LAUNCH_STATION_NOTARY_PROFILE:-}"
@@ -122,6 +123,10 @@ done
   print -u2 "Invalid LaunchAgent source: $LAUNCH_AGENT_TEMPLATE must be a regular non-symlink file"
   exit 2
 }
+[[ -f "$APP_ICON" && ! -L "$APP_ICON" ]] || {
+  print -u2 "Invalid app icon source: $APP_ICON must be a regular non-symlink file"
+  exit 2
+}
 skill_version=$(/usr/bin/tr -d '[:space:]' < "$SKILL_ROOT/VERSION")
 app_version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$ROOT/Resources/Info.plist")
 [[ "$skill_version" == "$app_version" ]] || {
@@ -201,6 +206,7 @@ fi
 /bin/mkdir -p "$BUNDLE/Contents/Resources/Skills"
 
 /bin/cp "$ROOT/Resources/Info.plist" "$BUNDLE/Contents/Info.plist"
+/bin/cp "$APP_ICON" "$BUNDLE/Contents/Resources/LaunchStation.icns"
 /bin/cp "$RELEASE_TRUST_POLICY" "$BUNDLE/Contents/Resources/ReleaseTrustPolicy.plist"
 /bin/cp "$BUILD_PATH/release/LaunchStation" "$BUNDLE/Contents/MacOS/LaunchStation"
 /bin/cp "$BUILD_PATH/release/launchstationd" "$BUNDLE/Contents/Helpers/launchstationd"
@@ -216,6 +222,7 @@ fi
 /bin/chmod 0755 "$BUNDLE/Contents/Resources/bin/launch"
 /bin/chmod 0755 "$BUNDLE/Contents/Resources/bin/configure-launch-station"
 /bin/chmod 0644 "$BUNDLE/Contents/Resources/LaunchStationLaunchAgent.plist"
+/bin/chmod 0644 "$BUNDLE/Contents/Resources/LaunchStation.icns"
 /bin/chmod 0644 "$BUNDLE/Contents/Resources/ReleaseTrustPolicy.plist"
 /bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/launchstation/SKILL.md"
 /bin/chmod 0644 "$BUNDLE/Contents/Resources/Skills/launchstation/VERSION"

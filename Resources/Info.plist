@@ -8,6 +8,8 @@
     <string>Launch Station</string>
     <key>CFBundleExecutable</key>
     <string>LaunchStation</string>
+    <key>CFBundleIconFile</key>
+    <string>LaunchStation.icns</string>
     <key>CFBundleIdentifier</key>
     <string>com.jakemawson.launchstation</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -17,9 +19,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-	<string>1.3.10</string>
+	<string>1.3.11</string>
     <key>CFBundleVersion</key>
-	<string>34</string>
+	<string>35</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.developer-tools</string>
     <key>LSMinimumSystemVersion</key>
