@@ -44,10 +44,14 @@ CURRENT_UID=$(/usr/bin/id -u)
 [[ "$CURRENT_UID" != "0" && -z "${SUDO_USER:-}" && -z "${SUDO_UID:-}" && -z "${SUDO_COMMAND:-}" ]] || \
   fail "run as the logged-in user without sudo"
 
-# Structured Homebrew install steps run with a sandbox-owned HOME. Resolve the
-# account's real home from the current uid before constructing any managed path.
-RESOLVED_HOME=$(/usr/bin/dscacheutil -q user -a uid "$CURRENT_UID" \
-  | /usr/bin/awk '$1 == "dir:" { sub(/^[^:]+:[[:space:]]*/, ""); print; exit }')
+# Structured Homebrew install steps run with a sandbox-owned HOME. zsh expands
+# the authenticated account's tilde from the local account database without the
+# external directory-service lookup that Homebrew's sandbox terminates. The
+# ownership and real-directory checks below still reject an unsafe resolution.
+CURRENT_USER="${USER:-}"
+[[ -n "$CURRENT_USER" && "$CURRENT_USER" != *$'\n'* && "$CURRENT_USER" != *$'\r'* ]] || \
+  fail "could not resolve the current user name"
+RESOLVED_HOME="$(print -r -- ~${CURRENT_USER})"
 [[ -n "$RESOLVED_HOME" && "$RESOLVED_HOME" == /* && "$RESOLVED_HOME" != *$'\n'* && "$RESOLVED_HOME" != *$'\r'* ]] || \
   fail "could not resolve the current user's home directory"
 HOME="$RESOLVED_HOME"
@@ -84,9 +88,12 @@ metadata_value() {
   /usr/bin/plutil -extract "$1" raw -o - "$SERVICE_METADATA" 2>/dev/null || true
 }
 
-if [[ "${LAUNCH_STATION_SETUP_MODE:-}" == "verify-only" ]]; then
-  MODE="verify"
-fi
+case "${LAUNCH_STATION_SETUP_MODE:-}" in
+  "") ;;
+  verify-only) MODE="verify" ;;
+  stage-only) MODE="stage" ;;
+  *) fail "unsupported setup mode" ;;
+esac
 
 if [[ "$MODE" == "uninstall" ]]; then
   if job_is_loaded; then
@@ -178,6 +185,9 @@ if [[ -e "$LAUNCH_AGENT" || -L "$LAUNCH_AGENT" ]]; then
   if /usr/bin/cmp -s "$temporary_agent" "$LAUNCH_AGENT"; then
     /bin/rm -f -- "$temporary_agent"
   else
+    if [[ "$MODE" == "stage" ]]; then
+      fail "the existing Launch Station service contract differs; open Launch Station to reconcile it explicitly"
+    fi
     job_is_loaded && fail "a loaded Launch Station service uses a different app path; leave it running and reconcile it explicitly"
     /bin/mv -f "$temporary_agent" "$LAUNCH_AGENT"
   fi
@@ -186,6 +196,11 @@ else
 fi
 
 trap - EXIT INT TERM
+if [[ "$MODE" == "stage" ]]; then
+  print -- "Staged the Launch Station service contract. It will start on the next normal Launch Station app or CLI connection. Existing launcher data was not modified."
+  exit 0
+fi
+
 previous_pid=""
 service_restarted=false
 restart_pid_must_change=false

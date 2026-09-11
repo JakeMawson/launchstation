@@ -10,7 +10,7 @@ The system is designed for commands such as `npm run dev`, Python servers, nativ
 brew install --cask JakeMawson/tap/launchstation
 ```
 
-The Homebrew cask installs the Apple-notarized **Launch Station.app**, the `launch` CLI, and its per-user LaunchAgent. Upgrades replace only the application bundle and installation contract; they never create, rewrite, migrate, reset, or remove `~/Library/Application Support/Launch Station/launcher.sqlite3`. Uninstalling the cask also preserves the launcher catalog. See [launchstation.net](https://launchstation.net) for the product overview.
+The Homebrew cask installs the Apple-notarized **Launch Station.app**, the `launch` CLI, and its per-user LaunchAgent. The service starts through Launch Station's normal authenticated client recovery on the next app or CLI connection. Upgrades replace only the application bundle and installation contract; they never create, rewrite, migrate, reset, or remove `~/Library/Application Support/Launch Station/launcher.sqlite3`. Uninstalling the cask also preserves the launcher catalog. See [launchstation.net](https://launchstation.net) for the product overview.
 
 From **Settings → Application updates**, Launch Station checks the signed GitHub release metadata at launch and every two hours while it is open. A current install stays green even when a transient check is unavailable. When a newer release is found, the panel shows the current-to-new version, a short release-note summary, and expandable full notes. **Update now** runs only the fixed `brew upgrade --cask JakeMawson/tap/launchstation` path; Homebrew validates the cask archive and restarts the registered service while preserving the catalog. Automatic updates are opt-in: they may prepare a detected release, but never restart the app or any launcher until the user chooses **Restart to install update** (or explicitly relaunches Launch Station).
 
@@ -32,7 +32,7 @@ The app and CLI never edit SQLite or `launch_details.md` directly. They send aut
 
 ## Service recovery
 
-Launch Station 1.3.11 restores a missing or malformed per-user LaunchAgent from the verified signed app in Applications, preserving the previous definition for recovery. The service automatically restarts after exit. Clients wait for authenticated readiness and reconnect after a daemon replacement without killing a healthy service or replaying an ambiguous launch, stop, or write. A recovered connection also clears its obsolete service-error alert.
+Launch Station 1.3.12 uses Homebrew's current declarative cask steps to restore a missing or malformed per-user LaunchAgent from the verified signed app in Applications, preserving the previous definition for recovery. The service automatically restarts after exit. Clients wait for authenticated readiness and reconnect after a daemon replacement without killing a healthy service or replaying an ambiguous launch, stop, or write. A recovered connection also clears its obsolete service-error alert.
 
 Recovery remains bounded and preserves explicit errors for an unsafe installation, invalid signature, incompatible metadata, or unavailable operating-system service manager. Isolated development state requires its own explicitly managed daemon and never starts the installed service as a fallback.
 

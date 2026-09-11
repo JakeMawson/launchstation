@@ -143,15 +143,17 @@ require_match "$PACKAGE" 'LaunchStationLaunchAgent[.]plist' \
 
 # Homebrew installation may configure the app/service contract, but it must never
 # mutate or remove the launcher catalogue during install, upgrade, or uninstall.
-require_match "$HOMEBREW_SETUP" 'LAUNCH_STATION_SETUP_MODE.*verify-only' \
+require_match "$HOMEBREW_SETUP" 'verify-only\)[[:space:]]+MODE="verify"' \
   'Homebrew setup helper has no isolated verification mode'
+require_match "$HOMEBREW_SETUP" 'stage-only\)[[:space:]]+MODE="stage"' \
+  'Homebrew setup helper has no declarative-cask staging mode'
 require_match "$HOMEBREW_SETUP" 'Existing launcher data was not modified|Launcher data was preserved' \
   'Homebrew setup helper does not state its data-preservation contract'
 require_no_match "$HOMEBREW_SETUP" 'launcher[.]sqlite3|sqlite3|\.backup|VACUUM|DELETE FROM|DROP TABLE' \
   'Homebrew setup helper may access the launcher database'
 require_no_match "$HOMEBREW_SETUP" 'rm[^\n]*(Application Support|STATE_DIRECTORY|LOG_DIRECTORY)' \
   'Homebrew setup helper may remove application data or logs'
-require_match "$HOMEBREW_SETUP" 'dscacheutil[[:space:]]+-q[[:space:]]+user[[:space:]]+-a[[:space:]]+uid' \
+require_match "$HOMEBREW_SETUP" 'print[[:space:]]+-r[[:space:]]+--[[:space:]]+~\$\{CURRENT_USER\}' \
   'Homebrew setup helper does not resolve the real user home outside Homebrew sandbox HOME'
 require_match "$HOMEBREW_SETUP" 'HOME="\$RESOLVED_HOME"' \
   'Homebrew setup helper does not replace sandbox HOME with the resolved user home'
@@ -169,6 +171,8 @@ require_match "$HOMEBREW_SETUP" 'for[[:space:]]+attempt[[:space:]]+in[[:space:]]
   'Homebrew setup helper has no bounded readiness retry window'
 require_match "$HOMEBREW_SETUP" 'kickstart[[:space:]]+-k[[:space:]]+"\$DOMAIN/\$LABEL"' \
   'Homebrew setup helper does not force an already-loaded daemon to restart'
+require_match "$HOMEBREW_SETUP" 'Staged the Launch Station service contract' \
+  'Homebrew setup helper does not state the deferred-start staging contract'
 require_match "$HOMEBREW_SETUP" 'previous_pid=.*launchd_pid' \
   'Homebrew setup helper does not capture the daemon PID before restart'
 require_match "$HOMEBREW_SETUP" 'current_pid.*!=.*previous_pid' \
