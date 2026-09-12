@@ -198,13 +198,8 @@ struct LauncherRootView: View {
         .toolbar {
             launcherToolbar
         }
-        // The native sidebar toggle already owns the split-view transition. Reinstalling the
-        // title-bar material while `columnVisibility` changes invalidates AppKit layout in the
-        // middle of the opening animation, which makes the detail column briefly overshoot and
-        // jump back. The toolbar composition can still change with the selected launcher, but a
-        // sidebar show/hide must leave the title-bar hierarchy alone so AppKit can animate it in
-        // one uninterrupted transaction.
-        .background(FullWidthToolbarBackdropInstaller(configurationToken: toolbarAlignmentToken))
+        // The native sidebar toggle owns the split-view transition. Keep the toolbar hierarchy
+        // untouched so AppKit can animate the detail column without covering SwiftUI content.
         .background(ToolbarTrailingActionSpacerInstaller(configurationToken: toolbarAlignmentToken))
         .task {
             viewModel.startPolling()
