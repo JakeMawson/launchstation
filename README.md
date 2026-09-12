@@ -32,7 +32,7 @@ The app and CLI never edit SQLite or `launch_details.md` directly. They send aut
 
 ## Service recovery
 
-Launch Station 1.3.13 uses Homebrew's current declarative cask steps to restore a missing or malformed per-user LaunchAgent from the verified signed app in Applications, preserving the previous definition for recovery. The service automatically restarts after exit. Clients wait for authenticated readiness and reconnect after a daemon replacement without killing a healthy service or replaying an ambiguous launch, stop, or write. A recovered connection also clears its obsolete service-error alert.
+Launch Station 1.3.14 uses Homebrew's current declarative cask steps to restore a missing or malformed per-user LaunchAgent from the verified signed app in Applications, preserving the previous definition for recovery. The service automatically restarts after exit. Clients wait for authenticated readiness and reconnect after a daemon replacement without killing a healthy service or replaying an ambiguous launch, stop, or write. A recovered connection also clears its obsolete service-error alert.
 
 Recovery remains bounded and preserves explicit errors for an unsafe installation, invalid signature, incompatible metadata, or unavailable operating-system service manager. Isolated development state requires its own explicitly managed daemon and never starts the installed service as a fallback.
 

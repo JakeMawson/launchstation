@@ -74,10 +74,6 @@ struct LauncherRootView: View {
         return "none"
     }
 
-    private var toolbarChromeToken: String {
-        "\(toolbarAlignmentToken)|\(String(describing: columnVisibility))"
-    }
-
     private var rootHasActiveSheet: Bool {
         viewModel.historyPresentation != nil
             || viewModel.isSkillInstallerPresented
@@ -202,7 +198,13 @@ struct LauncherRootView: View {
         .toolbar {
             launcherToolbar
         }
-        .background(FullWidthToolbarBackdropInstaller(configurationToken: toolbarChromeToken))
+        // The native sidebar toggle already owns the split-view transition. Reinstalling the
+        // title-bar material while `columnVisibility` changes invalidates AppKit layout in the
+        // middle of the opening animation, which makes the detail column briefly overshoot and
+        // jump back. The toolbar composition can still change with the selected launcher, but a
+        // sidebar show/hide must leave the title-bar hierarchy alone so AppKit can animate it in
+        // one uninterrupted transaction.
+        .background(FullWidthToolbarBackdropInstaller(configurationToken: toolbarAlignmentToken))
         .background(ToolbarTrailingActionSpacerInstaller(configurationToken: toolbarAlignmentToken))
         .task {
             viewModel.startPolling()
