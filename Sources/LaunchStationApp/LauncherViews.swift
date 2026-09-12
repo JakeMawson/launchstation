@@ -206,6 +206,7 @@ struct LauncherRootView: View {
         // one uninterrupted transaction.
         .background(FullWidthToolbarBackdropInstaller(configurationToken: toolbarAlignmentToken))
         .background(ToolbarTrailingActionSpacerInstaller(configurationToken: toolbarAlignmentToken))
+        .background(DefaultLaunchWindowSizeInstaller())
         .task {
             viewModel.startPolling()
             viewModel.startAppUpdateChecks()
