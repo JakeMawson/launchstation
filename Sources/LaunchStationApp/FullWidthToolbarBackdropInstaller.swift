@@ -1,15 +1,14 @@
 import AppKit
 import SwiftUI
 
-/// Gives the unified window toolbar one AppKit-owned backdrop and title instead
-/// of letting `NavigationSplitView` paint and position independent sidebar and
-/// detail title-bar regions.
+/// Adds the fixed title label to the unified window toolbar without altering its
+/// AppKit-owned background.
 ///
 /// The standard close button's direct superview is the title-bar container. A
-/// visual-effect view inserted behind its existing controls therefore covers the
-/// complete toolbar width. Its title label is positioned after the native sidebar
-/// toggle (or the traffic lights when AppKit does not expose that view), keeping
-/// the title fixed as the split-view sidebar appears and disappears.
+/// title-bar container is used only as the title label's host. Its title label is
+/// positioned after the native sidebar toggle (or the traffic lights when AppKit
+/// does not expose that view), keeping the title fixed as the split-view sidebar
+/// appears and disappears.
 struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
     let configurationToken: String
 
@@ -26,9 +25,6 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
     }
 
     final class InstallerView: NSView {
-        private static let backdropIdentifier = NSUserInterfaceItemIdentifier(
-            "com.jakemawson.launchstation.full-width-toolbar-backdrop"
-        )
         private static let titleIdentifier = NSUserInterfaceItemIdentifier(
             "com.jakemawson.launchstation.fixed-toolbar-title"
         )
@@ -63,22 +59,7 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
                 return
             }
 
-            window.titlebarAppearsTransparent = true
-
-            let backdrop: ToolbarBackgroundView
-            if let existing = titlebarContainer.subviews.first(where: {
-                $0.identifier == Self.backdropIdentifier
-            }) as? ToolbarBackgroundView {
-                backdrop = existing
-            } else {
-                backdrop = ToolbarBackgroundView(frame: titlebarContainer.bounds)
-                backdrop.identifier = Self.backdropIdentifier
-                backdrop.autoresizingMask = [.width, .height]
-            }
-
-            backdrop.frame = titlebarContainer.bounds
-            titlebarContainer.addSubview(backdrop, positioned: .below, relativeTo: nil)
-            installTitle(in: titlebarContainer, window: window, behind: backdrop)
+            installTitle(in: titlebarContainer, window: window)
             retryIfNeeded(retriesRemaining)
         }
 
@@ -110,8 +91,7 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
 
         private func installTitle(
             in titlebarContainer: NSView,
-            window: NSWindow,
-            behind backdrop: NSView
+            window: NSWindow
         ) {
             let title: NSTextField
             if let existing = titlebarContainer.subviews.first(where: {
@@ -132,7 +112,7 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
                 title.setContentHuggingPriority(.required, for: .horizontal)
                 title.sizeToFit()
                 title.setAccessibilityLabel("Launch Station")
-                titlebarContainer.addSubview(title, positioned: .above, relativeTo: backdrop)
+                titlebarContainer.addSubview(title)
             }
 
             let sidebarToggleEdge = window.toolbar?.items.first(where: {
@@ -158,27 +138,5 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
             titlebarContainer.addSubview(title, positioned: .above, relativeTo: nil)
         }
 
-        /// Keep the native title-bar controls, but paint their shared container with the same
-        /// adaptive porcelain colour used by the window content instead of a separate toolbar
-        /// material.
-        private final class ToolbarBackgroundView: NSView {
-            override var isOpaque: Bool { true }
-
-            override func draw(_ dirtyRect: NSRect) {
-                let colour: NSColor
-                if effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    colour = NSColor(srgbRed: 0x15 / 255, green: 0x1D / 255, blue: 0x20 / 255, alpha: 1)
-                } else {
-                    colour = NSColor(srgbRed: 0xFB / 255, green: 0xFC / 255, blue: 0xFC / 255, alpha: 1)
-                }
-                colour.setFill()
-                dirtyRect.fill()
-            }
-
-            override func viewDidChangeEffectiveAppearance() {
-                super.viewDidChangeEffectiveAppearance()
-                needsDisplay = true
-            }
-        }
     }
 }

@@ -198,8 +198,9 @@ struct LauncherRootView: View {
         .toolbar {
             launcherToolbar
         }
-        // The native sidebar toggle owns the split-view transition. Keep the toolbar hierarchy
-        // untouched so AppKit can animate the detail column without covering SwiftUI content.
+        // The native sidebar toggle owns the split-view transition. The title installer adds
+        // only a label; it never changes the title-bar background or layout hierarchy.
+        .background(FullWidthToolbarBackdropInstaller(configurationToken: toolbarAlignmentToken))
         .background(ToolbarTrailingActionSpacerInstaller(configurationToken: toolbarAlignmentToken))
         .task {
             viewModel.startPolling()
