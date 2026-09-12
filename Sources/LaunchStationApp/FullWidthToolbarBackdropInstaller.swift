@@ -65,18 +65,15 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
 
             window.titlebarAppearsTransparent = true
 
-            let backdrop: NSVisualEffectView
+            let backdrop: ToolbarBackgroundView
             if let existing = titlebarContainer.subviews.first(where: {
                 $0.identifier == Self.backdropIdentifier
-            }) as? NSVisualEffectView {
+            }) as? ToolbarBackgroundView {
                 backdrop = existing
             } else {
-                backdrop = NSVisualEffectView(frame: titlebarContainer.bounds)
+                backdrop = ToolbarBackgroundView(frame: titlebarContainer.bounds)
                 backdrop.identifier = Self.backdropIdentifier
                 backdrop.autoresizingMask = [.width, .height]
-                backdrop.material = .headerView
-                backdrop.blendingMode = .withinWindow
-                backdrop.state = .active
             }
 
             backdrop.frame = titlebarContainer.bounds
@@ -114,7 +111,7 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
         private func installTitle(
             in titlebarContainer: NSView,
             window: NSWindow,
-            behind backdrop: NSVisualEffectView
+            behind backdrop: NSView
         ) {
             let title: NSTextField
             if let existing = titlebarContainer.subviews.first(where: {
@@ -159,6 +156,29 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
             )
             title.autoresizingMask = [.maxXMargin]
             titlebarContainer.addSubview(title, positioned: .above, relativeTo: nil)
+        }
+
+        /// Keep the native title-bar controls, but paint their shared container with the same
+        /// adaptive porcelain colour used by the window content instead of a separate toolbar
+        /// material.
+        private final class ToolbarBackgroundView: NSView {
+            override var isOpaque: Bool { true }
+
+            override func draw(_ dirtyRect: NSRect) {
+                let colour: NSColor
+                if effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                    colour = NSColor(srgbRed: 0x15 / 255, green: 0x1D / 255, blue: 0x20 / 255, alpha: 1)
+                } else {
+                    colour = NSColor(srgbRed: 0xFB / 255, green: 0xFC / 255, blue: 0xFC / 255, alpha: 1)
+                }
+                colour.setFill()
+                dirtyRect.fill()
+            }
+
+            override func viewDidChangeEffectiveAppearance() {
+                super.viewDidChangeEffectiveAppearance()
+                needsDisplay = true
+            }
         }
     }
 }
