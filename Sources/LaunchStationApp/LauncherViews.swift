@@ -74,6 +74,10 @@ struct LauncherRootView: View {
         return "none"
     }
 
+    private var toolbarChromeToken: String {
+        "\(toolbarAlignmentToken)|\(String(describing: columnVisibility))"
+    }
+
     private var rootHasActiveSheet: Bool {
         viewModel.historyPresentation != nil
             || viewModel.isSkillInstallerPresented
@@ -102,19 +106,9 @@ struct LauncherRootView: View {
     @ToolbarContentBuilder
     private var launcherToolbar: some ToolbarContent {
         if #available(macOS 26.0, *) {
-            launcherTitleToolbarItem.sharedBackgroundVisibility(.hidden)
             launcherActionToolbarItem.sharedBackgroundVisibility(.hidden)
         } else {
-            launcherTitleToolbarItem
             launcherActionToolbarItem
-        }
-    }
-
-    private var launcherTitleToolbarItem: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Text("Launch Station")
-                .font(.system(size: 13, weight: .semibold))
-                .padding(.leading, 18)
         }
     }
 
@@ -208,6 +202,7 @@ struct LauncherRootView: View {
         .toolbar {
             launcherToolbar
         }
+        .background(FullWidthToolbarBackdropInstaller(configurationToken: toolbarChromeToken))
         .background(ToolbarTrailingActionSpacerInstaller(configurationToken: toolbarAlignmentToken))
         .task {
             viewModel.startPolling()

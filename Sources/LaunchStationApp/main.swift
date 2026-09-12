@@ -9,8 +9,8 @@ struct LaunchStationApp: App {
             LauncherRootView(viewModel: viewModel)
         }
         .defaultSize(width: 1040, height: 680)
-        // The toolbar carries the explicitly padded title so the system title must not
-        // render a second, visually duplicate label beside it.
+        // The AppKit title-bar installer supplies a fixed title beside the sidebar toggle, so
+        // the system title must not render a second, visually duplicate label.
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
         .commands {
             LauncherCommands(viewModel: viewModel)
