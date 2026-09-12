@@ -59,6 +59,7 @@ struct FullWidthToolbarBackdropInstaller: NSViewRepresentable {
                 return
             }
 
+            window.titlebarAppearsTransparent = true
             installTitle(in: titlebarContainer, window: window)
             retryIfNeeded(retriesRemaining)
         }
