@@ -3646,7 +3646,7 @@ private struct ApplicationUpdatePanel: View {
         case .staging(let release):
             releaseSummary(release: release, suffix: "Homebrew is downloading the verified cask; Launch Station will stay open.")
         case .readyToInstall(let release):
-            releaseSummary(release: release, suffix: "The update is ready. Restarting is your choice.")
+            releaseSummary(release: release, suffix: "The update is ready. Choose Restart to install it and reopen Launch Station.")
         case .installing(let release):
             releaseSummary(release: release, suffix: "Homebrew is replacing the app and preserving your launcher catalog.")
         case .relaunching(let release):

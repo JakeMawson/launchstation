@@ -705,21 +705,26 @@ final class LauncherViewModel: ObservableObject {
         guard bundleURL.pathExtension.lowercased() == "app" else {
             throw AppUpdateError.relaunchFailed("The running app is not installed as an application bundle.")
         }
-        let oldProcessID = ProcessInfo.processInfo.processIdentifier
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        configuration.createsNewApplicationInstance = true
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { application, error in
-                if let error {
-                    continuation.resume(throwing: AppUpdateError.relaunchFailed(error.localizedDescription))
-                } else if application?.processIdentifier == oldProcessID {
-                    continuation.resume(throwing: AppUpdateError.relaunchFailed("macOS reused the outgoing app process."))
-                } else {
-                    continuation.resume()
-                }
-            }
+        let relauncher = Process()
+        relauncher.executableURL = URL(fileURLWithPath: "/bin/sh")
+        // `NSWorkspace` launched from the outgoing process can be coalesced back into that
+        // process by Launch Services. Run a tiny independent handoff instead: it waits until
+        // this process has terminated, then opens the now-replaced bundle as a fresh instance.
+        // Both values are positional arguments, never interpolated into the shell program.
+        relauncher.arguments = [
+            "-c",
+            "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.05; done; exec /usr/bin/open -n \"$2\"",
+            "launchstation-relaunch",
+            String(ProcessInfo.processInfo.processIdentifier),
+            bundleURL.path,
+        ]
+        relauncher.standardInput = FileHandle.nullDevice
+        relauncher.standardOutput = FileHandle.nullDevice
+        relauncher.standardError = FileHandle.nullDevice
+        do {
+            try relauncher.run()
+        } catch {
+            throw AppUpdateError.relaunchFailed(error.localizedDescription)
         }
     }
 
