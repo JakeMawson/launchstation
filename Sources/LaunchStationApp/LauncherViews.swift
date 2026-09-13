@@ -156,6 +156,7 @@ struct LauncherRootView: View {
                 .accessibilityLabel("Add launcher")
                 .accessibilityHint("Opens a blank manual launcher definition. Nothing is saved until reviewed and confirmed.")
             }
+            .disabled(viewModel.isInstallingAppUpdate)
         }
     }
 
@@ -190,8 +191,11 @@ struct LauncherRootView: View {
         }
         .frame(minWidth: 820, minHeight: 540)
         .background(RunwayPalette.porcelain)
+        .disabled(viewModel.isInstallingAppUpdate)
         .overlay {
-            if viewModel.isStartingService {
+            if viewModel.isInstallingAppUpdate {
+                AppUpdateInstallationOverlay()
+            } else if viewModel.isStartingService {
                 StartingServiceOverlay()
             }
         }
@@ -294,6 +298,32 @@ struct LauncherRootView: View {
     private func exitSearch() {
         viewModel.searchText = ""
         searchFocused = false
+    }
+}
+
+struct AppUpdateInstallationOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.16).ignoresSafeArea()
+            VStack(spacing: 14) {
+                ProgressView().controlSize(.large).tint(RunwayPalette.tide)
+                Text("Installing Launch Station update…")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                Text("Editing is paused until the update finishes.\nYour saved launchers will be preserved.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(RunwayPalette.secondaryText)
+            }
+            .multilineTextAlignment(.center)
+            .foregroundStyle(RunwayPalette.carbonText)
+            .padding(30)
+            .background {
+                RoundedRectangle(cornerRadius: 16).fill(RunwayPalette.fog)
+            }
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
+            .accessibilityElement(children: .combine)
+        }
+        .contentShape(Rectangle())
     }
 }
 
@@ -783,7 +813,7 @@ private struct SkillPromptCard: View {
                     .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("INSTALL AGENT SKILL")
+                    Text("\(viewModel.skillPromptAction.uppercased()) AGENT SKILL")
                         .font(.system(size: 10.5, weight: .bold))
                         .tracking(0.7)
                     Text("Teach your coding agents to register and relaunch projects here.")
@@ -815,8 +845,8 @@ private struct SkillPromptCard: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
-        .help("Install or download the Launch Station agent skill")
-        .accessibilityLabel("Install Launch Station agent skill")
+        .help("\(viewModel.skillPromptAction) or download the Launch Station agent skill")
+        .accessibilityLabel("\(viewModel.skillPromptAction) Launch Station agent skill")
         .accessibilityHint("Opens choices for Codex, Claude Code, or downloading SKILL.md.")
     }
 }
@@ -3509,7 +3539,11 @@ struct LauncherSettingsView: View {
             }
         }
         .frame(width: 650, height: 680)
+        .disabled(viewModel.isInstallingAppUpdate)
         .background(RunwayPalette.porcelain)
+        .overlay {
+            if viewModel.isInstallingAppUpdate { AppUpdateInstallationOverlay() }
+        }
         .task {
             await viewModel.refreshLauncherSkillStatus(silent: true)
             viewModel.startAppUpdateChecks()

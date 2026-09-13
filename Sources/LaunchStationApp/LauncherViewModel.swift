@@ -273,6 +273,8 @@ final class LauncherViewModel: ObservableObject {
     private let client: LauncherAPIClient
     private let appUpdateClient: any AppUpdateChecking
     private let homebrewUpdater: any HomebrewCaskUpdating
+    private let updateMaintenance: any AppUpdateMaintenance
+    private let updateApplication: any AppUpdateApplicationLifecycle
     private let defaults: UserDefaults
     private var pollingTask: Task<Void, Never>?
     private var connectionAlertID: UUID?
@@ -294,11 +296,15 @@ final class LauncherViewModel: ObservableObject {
         client: LauncherAPIClient,
         appUpdateClient: any AppUpdateChecking = GitHubReleaseUpdateClient(),
         homebrewUpdater: any HomebrewCaskUpdating = HomebrewCaskUpdater(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        updateMaintenance: (any AppUpdateMaintenance)? = nil,
+        updateApplication: (any AppUpdateApplicationLifecycle)? = nil
     ) {
         self.client = client
         self.appUpdateClient = appUpdateClient
         self.homebrewUpdater = homebrewUpdater
+        self.updateMaintenance = updateMaintenance ?? client
+        self.updateApplication = updateApplication ?? RunningAppUpdateApplication()
         self.defaults = defaults
         // New installations opt in to background preparation. An explicitly persisted false
         // remains an opt-out rather than being overwritten by a future app launch.
@@ -455,6 +461,10 @@ final class LauncherViewModel: ObservableObject {
         return status.needsAgentSkillInstallationPrompt
     }
 
+    var skillPromptAction: String {
+        launcherSkillStatus?.agentSkillPromptAction ?? "Install"
+    }
+
     func skillStatus(for host: LauncherSkillHost) -> LauncherSkillHostStatus? {
         launcherSkillStatus?.hosts.first(where: { $0.host == host })
     }
@@ -512,7 +522,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func startPolling() {
-        guard pollingTask == nil else { return }
+        guard pollingTask == nil, !isInstallingAppUpdate else { return }
         pollingTask = Task { [weak self] in
             guard let self else { return }
             // Establish the daemon connection before dependent panels request their data. When
@@ -663,10 +673,22 @@ final class LauncherViewModel: ObservableObject {
 
     private func installAppUpdate(_ release: AppUpdateRelease) async {
         guard let expectedVersion = release.version, !isInstallingAppUpdate else { return }
+        guard !hasUnsavedAppWork else {
+            appUpdateStatus = .available(release: release, message: "Save or cancel open launcher drafts and clear pending runtime arguments before updating. Your work has been kept.")
+            return
+        }
         appUpdateStatus = .installing(release: release)
+        let resumePolling = pollingTask != nil
+        stopPolling()
+        var reservation: UpgradeMaintenanceReservation?
         do {
+            let acquired = try await updateMaintenance.prepareUpgrade(ownerPID: ProcessInfo.processInfo.processIdentifier)
+            reservation = acquired
+            guard acquired.ownerPID == ProcessInfo.processInfo.processIdentifier else {
+                throw AppUpdateError.unsafeServiceVersion
+            }
             try await homebrewUpdater.install()
-            let installedVersionText = LauncherRuntimeVersion.current()
+            let installedVersionText = updateApplication.installedVersion()
             guard let installedVersion = AppUpdateVersion(installedVersionText),
                   installedVersion >= expectedVersion else {
                 throw AppUpdateError.installedVersionDidNotAdvance(
@@ -674,16 +696,33 @@ final class LauncherViewModel: ObservableObject {
                     actual: installedVersionText
                 )
             }
+            _ = try await updateMaintenance.cancelUpgrade(reservationToken: acquired.reservationToken)
+            reservation = nil
             clearPendingAutomaticRelease()
             appUpdateStatus = .relaunching(release: release)
-            try await relaunchUpdatedApplication()
-            NSApp.terminate(nil)
+            try await updateApplication.relaunch()
         } catch {
+            var cleanupNote = ""
+            if let reservation {
+                do {
+                    _ = try await updateMaintenance.cancelUpgrade(reservationToken: reservation.reservationToken)
+                } catch {
+                    cleanupNote = " The service upgrade gate could not be released; quit Launch Station and let the abandoned reservation expire before retrying."
+                }
+            }
             appUpdateStatus = .available(
                 release: release,
-                message: "Couldn’t install the update: \(error.localizedDescription)"
+                message: "Couldn’t install the update: \(error.localizedDescription)\(cleanupNote)"
             )
+            if resumePolling { startPolling() }
         }
+    }
+
+    var hasUnsavedAppWork: Bool {
+        launcherEditPresentation != nil || externalDraftPresentation != nil
+            || isLoadingExternalDraft || isSavingExternalDraft
+            || isDownloadingSkill || isUninstallingSkill || !installingSkillHosts.isEmpty
+            || runtimeArgumentText.values.contains { !$0.isEmpty }
     }
 
     private func persistPendingAutomaticRelease(_ release: AppUpdateRelease) {
@@ -698,34 +737,6 @@ final class LauncherViewModel: ObservableObject {
 
     private func clearPendingAutomaticRelease() {
         defaults.removeObject(forKey: Self.pendingAutomaticReleaseKey)
-    }
-
-    private func relaunchUpdatedApplication() async throws {
-        let bundleURL = Bundle.main.bundleURL
-        guard bundleURL.pathExtension.lowercased() == "app" else {
-            throw AppUpdateError.relaunchFailed("The running app is not installed as an application bundle.")
-        }
-        let relauncher = Process()
-        relauncher.executableURL = URL(fileURLWithPath: "/bin/sh")
-        // `NSWorkspace` launched from the outgoing process can be coalesced back into that
-        // process by Launch Services. Run a tiny independent handoff instead: it waits until
-        // this process has terminated, then opens the now-replaced bundle as a fresh instance.
-        // Both values are positional arguments, never interpolated into the shell program.
-        relauncher.arguments = [
-            "-c",
-            "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.05; done; exec /usr/bin/open -n \"$2\"",
-            "launchstation-relaunch",
-            String(ProcessInfo.processInfo.processIdentifier),
-            bundleURL.path,
-        ]
-        relauncher.standardInput = FileHandle.nullDevice
-        relauncher.standardOutput = FileHandle.nullDevice
-        relauncher.standardError = FileHandle.nullDevice
-        do {
-            try relauncher.run()
-        } catch {
-            throw AppUpdateError.relaunchFailed(error.localizedDescription)
-        }
     }
 
     private func connectOnLaunch() async {
@@ -917,7 +928,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func requestExternalLauncherDraft(for observation: ExternalProcessObservation) async {
-        guard !isLoadingExternalDraft else { return }
+        guard !isLoadingExternalDraft, !isInstallingAppUpdate else { return }
         isLoadingExternalDraft = true
         defer { isLoadingExternalDraft = false }
         await refreshExternalProcesses(fresh: true, silent: true)
@@ -930,7 +941,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func presentManualLauncherDraft() {
-        guard !isSavingExternalDraft else { return }
+        guard !isSavingExternalDraft, !isInstallingAppUpdate else { return }
         externalDraftPresentation = ExternalDraftPresentation(
             draft: ExternalLauncherDraft(
                 sourceObservationID: UUID(),
@@ -953,7 +964,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func presentLauncherEditor(for detail: LauncherDetail) {
-        guard !isSavingExternalDraft else { return }
+        guard !isSavingExternalDraft, !isInstallingAppUpdate else { return }
         launcherEditPresentation = LauncherEditPresentation(detail: detail)
     }
 
@@ -1777,6 +1788,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func setArgumentsText(_ value: String, for launcherID: UUID) {
+        guard !isInstallingAppUpdate else { return }
         runtimeArgumentText[launcherID] = value
     }
 

@@ -237,11 +237,19 @@ public struct SessionHistoryPage: Codable, Equatable, Sendable {
 public struct UpgradeMaintenanceReservation: Codable, Equatable, Sendable {
     public var reservationToken: String
     public var expiresAt: Date
+    /// Present only for an installer-owned gate that survives daemon replacement.
+    public var ownerPID: Int32?
 
-    public init(reservationToken: String, expiresAt: Date) {
+    public init(reservationToken: String, expiresAt: Date, ownerPID: Int32? = nil) {
         self.reservationToken = reservationToken
         self.expiresAt = expiresAt
+        self.ownerPID = ownerPID
     }
+}
+
+public struct UpgradeMaintenancePrepareRequest: Codable, Sendable {
+    public var ownerPID: Int32?
+    public init(ownerPID: Int32? = nil) { self.ownerPID = ownerPID }
 }
 
 public struct UpgradeMaintenanceCancelRequest: Codable, Equatable, Sendable {
@@ -421,6 +429,12 @@ public struct LauncherSkillStatus: Codable, Equatable, Sendable {
     /// verified, usable copy. Other product tiles remain available for voluntary updates.
     public var needsAgentSkillInstallationPrompt: Bool {
         !hosts.contains(where: \.hasVerifiedAvailableInstallation)
+    }
+
+    /// Wording is independent of visibility: an older installed copy needs an update,
+    /// while missing installations (including an empty initial scan) need an install.
+    public var agentSkillPromptAction: String {
+        hosts.contains(where: { $0.state == .outdated }) ? "Update" : "Install"
     }
 }
 

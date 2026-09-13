@@ -383,6 +383,8 @@ launch maintenance cancel-upgrade RESERVATION_TOKEN --json
 
 Preparation atomically requires a fully idle daemon, including no starting, stopping, or relaunching lifecycle, and then rejects every mutation with `409` until the exact reservation is cancelled, expires after 120 seconds, or the daemon restarts. The returned reservation token is a short-lived cancellation capability: keep it only in private process memory, never print or log it, and cancel it on any installer failure before daemon shutdown. This gate does not authorize replacing the app; use it only inside an already-authorized upgrade transaction.
 
+The GUI's Homebrew installation uses the stronger `ownerPID` form of this API. Its private reservation is persisted across service replacement and remains active while that exact PID birth identity is alive, or until the 15-minute crash-recovery deadline. Only the matching reservation token cancels it. The GUI refuses legacy responses without the matching owner PID; do not bypass that refusal or clear its journal to force an upgrade.
+
 ## Local HTTP API
 
 Prefer the CLI. Use the direct API only when a programmatic client genuinely needs it.
@@ -417,7 +419,7 @@ Lifecycle and skill routes:
 | `POST /v1/skills/install` | Host-only install request | Verified shared product-install result |
 | `POST /v1/skills/uninstall-intent` | Product uninstall request | Receipt-backed confirmation capability for that product root |
 | `POST /v1/skills/uninstall` | Product/receipt-bound uninstall binding and confirmation | Remove only receipt-proven managed files |
-| `POST /v1/maintenance/upgrade/prepare` | — | Require full idle state and return a short-lived mutation reservation |
+| `POST /v1/maintenance/upgrade/prepare` | Optional `{ "ownerPID": 123 }` | Require full idle state; installer owners receive a persistent exact-process reservation |
 | `POST /v1/maintenance/upgrade/cancel` | `{ "reservationToken": "..." }` | Cancel only the exact live reservation |
 
 Catalog routes:

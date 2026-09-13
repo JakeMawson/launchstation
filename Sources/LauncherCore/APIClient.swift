@@ -156,12 +156,15 @@ public actor LauncherAPIClient {
 
     /// Atomically confirms the daemon has no active or in-flight launcher lifecycle and reserves
     /// mutations long enough for an installer to terminate and replace that exact service.
-    public func prepareUpgrade() async throws -> UpgradeMaintenanceReservation {
-        try await request(method: "POST", path: "/v1/maintenance/upgrade/prepare")
+    public func prepareUpgrade(ownerPID: Int32? = nil) async throws -> UpgradeMaintenanceReservation {
+        if let ownerPID {
+            return try await request(method: "POST", path: "/v1/maintenance/upgrade/prepare", body: UpgradeMaintenancePrepareRequest(ownerPID: ownerPID))
+        }
+        return try await request(method: "POST", path: "/v1/maintenance/upgrade/prepare")
     }
 
     /// Releases only the matching live upgrade reservation. Use this when installation fails
-    /// before the daemon is terminated; a daemon restart clears the in-memory reservation.
+    /// or finishes. Installer-owned reservations survive daemon restarts.
     public func cancelUpgrade(reservationToken: String) async throws -> EmptyResponse {
         try await request(
             method: "POST",

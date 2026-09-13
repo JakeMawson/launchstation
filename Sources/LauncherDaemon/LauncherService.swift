@@ -41,6 +41,10 @@ private enum ServiceFailure: LocalizedError {
 }
 
 actor LauncherService {
+    private struct UpgradeJournal: Codable {
+        var reservation: UpgradeMaintenanceReservation?
+        var owner: ProcessBirthIdentity?
+    }
     private static let upgradeReservationLifetime: TimeInterval = 120
     private static let skillUninstallIntentLifetime: TimeInterval = 120
     private static let skillStatusCacheLifetime: TimeInterval = 30
@@ -68,6 +72,7 @@ actor LauncherService {
     /// Additional instances are independently relaunchable by exact session identity.
     private var relaunchingSessionIDs = Set<UUID>()
     private var upgradeMaintenanceReservation: UpgradeMaintenanceReservation?
+    private let upgradeJournalURL: URL?
     private var cachedSkillStatus: (status: LauncherSkillStatus, expiresAt: Date)?
     private var skillStatusRefreshTask: Task<LauncherSkillStatus, Error>?
 
@@ -75,12 +80,14 @@ actor LauncherService {
         store: SQLiteStore,
         supervisor: ProcessSupervisor,
         skillManager: LauncherSkillManager? = nil,
-        serviceVersion: String = LauncherRuntimeVersion.current()
+        serviceVersion: String = LauncherRuntimeVersion.current(),
+        upgradeJournalURL: URL? = nil
     ) {
         self.store = store
         self.supervisor = supervisor
         self.skillManager = skillManager
         self.serviceVersion = serviceVersion
+        self.upgradeJournalURL = upgradeJournalURL
         let monitor = ExternalProcessMonitor(excludedPIDs: [getpid()])
         self.externalMonitor = monitor
         self.externalController = ExternalProcessController(observations: monitor)
@@ -179,8 +186,8 @@ actor LauncherService {
         }
     }
 
-    private func prepareUpgrade(now: Date = Date()) throws -> UpgradeMaintenanceReservation {
-        guard currentUpgradeReservation(now: now) == nil else {
+    private func prepareUpgrade(ownerPID: Int32? = nil, now: Date = Date()) throws -> UpgradeMaintenanceReservation {
+        guard try currentUpgradeReservation(now: now) == nil else {
             throw ServiceFailure.conflict(
                 "An app upgrade reservation is already active. Cancel it with its exact reservation or wait for it to expire."
             )
@@ -199,10 +206,18 @@ actor LauncherService {
             )
         }
 
+        let owner = ownerPID.flatMap(ProcessBirthIdentity.init(pid:))
+        if ownerPID != nil, owner == nil || upgradeJournalURL == nil {
+            throw ServiceFailure.conflict("The installer process identity or persistent upgrade gate is unavailable.")
+        }
         let reservation = UpgradeMaintenanceReservation(
             reservationToken: UUID().uuidString.lowercased(),
-            expiresAt: now.addingTimeInterval(Self.upgradeReservationLifetime)
+            expiresAt: now.addingTimeInterval(owner == nil ? Self.upgradeReservationLifetime : 900),
+            ownerPID: owner?.pid
         )
+        if let owner, let upgradeJournalURL {
+            try LauncherPaths.atomicWrite(LauncherJSON.encoder().encode(UpgradeJournal(reservation: reservation, owner: owner)), to: upgradeJournalURL, permissions: 0o600)
+        }
         upgradeMaintenanceReservation = reservation
         return reservation
     }
@@ -211,25 +226,37 @@ actor LauncherService {
         guard !reservationToken.isEmpty else {
             throw ServiceFailure.badRequest("An upgrade reservation token is required.")
         }
-        guard let reservation = currentUpgradeReservation(now: now) else {
+        guard let reservation = try currentUpgradeReservation(now: now) else {
             throw ServiceFailure.conflict("No active app upgrade reservation exists.")
         }
         guard reservation.reservationToken == reservationToken else {
             // Never echo either cancellation capability into an API error or daemon log.
             throw ServiceFailure.conflict("The app upgrade reservation did not match the active reservation.")
         }
+        if reservation.ownerPID != nil, let upgradeJournalURL {
+            try LauncherPaths.atomicWrite(LauncherJSON.encoder().encode(UpgradeJournal(reservation: nil, owner: nil)), to: upgradeJournalURL, permissions: 0o600)
+        }
         upgradeMaintenanceReservation = nil
     }
 
     private func requireMutationsAvailable(now: Date = Date()) throws {
-        guard let reservation = currentUpgradeReservation(now: now) else { return }
+        guard let reservation = try currentUpgradeReservation(now: now) else { return }
         let expiry = ISO8601DateFormatter().string(from: reservation.expiresAt)
         throw ServiceFailure.conflict(
-            "Launcher mutations are paused for an app upgrade until \(expiry). Retry after the service restarts or cancel the exact reservation."
+            "Launcher mutations are paused for an app upgrade. Wait for the installer to finish or cancel its exact reservation (abandoned reservation expiry: \(expiry))."
         )
     }
 
-    private func currentUpgradeReservation(now: Date) -> UpgradeMaintenanceReservation? {
+    private func currentUpgradeReservation(now: Date) throws -> UpgradeMaintenanceReservation? {
+        if let upgradeJournalURL, FileManager.default.fileExists(atPath: upgradeJournalURL.path) {
+            // A replacement daemon must observe the same gate. Malformed/unreadable state
+            // fails closed rather than permitting writes during a half-completed install.
+            let journal = try LauncherJSON.decoder().decode(UpgradeJournal.self, from: Data(contentsOf: upgradeJournalURL))
+            if let reservation = journal.reservation {
+                let ownerIsLive = journal.owner.map { ProcessBirthIdentity.matches(pid: $0.pid, serialized: $0.serialized) } ?? false
+                if ownerIsLive || reservation.expiresAt > now { return reservation }
+            }
+        }
         guard let reservation = upgradeMaintenanceReservation else { return nil }
         guard reservation.expiresAt > now else {
             upgradeMaintenanceReservation = nil
@@ -399,7 +426,8 @@ actor LauncherService {
             return .json(draft)
         }
         if request.method == "POST", components == ["v1", "maintenance", "upgrade", "prepare"] {
-            return .json(try prepareUpgrade(), status: 201)
+            let body = request.body.isEmpty ? UpgradeMaintenancePrepareRequest() : try decode(request) as UpgradeMaintenancePrepareRequest
+            return .json(try prepareUpgrade(ownerPID: body.ownerPID), status: 201)
         }
         if request.method == "POST", components == ["v1", "maintenance", "upgrade", "cancel"] {
             let body: UpgradeMaintenanceCancelRequest = try decode(request)

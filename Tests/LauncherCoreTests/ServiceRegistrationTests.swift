@@ -3,6 +3,31 @@ import XCTest
 @testable import LauncherCore
 
 final class ServiceRegistrationTests: XCTestCase {
+    func testRecoveryHonorsVerifiedCustomInstallationFromRegisteredContract() throws {
+        let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/LaunchStation-RecoveryTests/\(UUID().uuidString)")
+        let customApp = root.appendingPathComponent("Custom Applications/Launch Station.app")
+        let helper = customApp.appendingPathComponent("Contents/Helpers/launchstationd")
+        let agent = root.appendingPathComponent("Library/LaunchAgents/test.plist")
+        try FileManager.default.createDirectory(at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: helper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+        let original = try ServiceRegistration.render(template: template, app: customApp, home: root)
+        try FileManager.default.createDirectory(at: agent.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try original.write(to: agent)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: agent.path)
+        var verifiedCustom = false
+        XCTAssertNoThrow(try ServiceRegistration.restoreIfNeeded(agentURL: agent, home: root, installedApp: root.appendingPathComponent("Applications/Launch Station.app"), verifyBundle: { candidate in
+            guard candidate.path == customApp.path else { throw LauncherAPIError.serviceUnavailable("wrong installation") }
+            verifiedCustom = true
+        }))
+        XCTAssertTrue(verifiedCustom)
+        XCTAssertEqual(try Data(contentsOf: agent), original)
+        XCTAssertThrowsError(try ServiceRegistration.restoreIfNeeded(agentURL: agent, home: root, verifyBundle: { _ in
+            throw LauncherAPIError.serviceUnavailable("untrusted signer")
+        }))
+        XCTAssertEqual(try Data(contentsOf: agent), original, "A rejected custom installation must never redirect the service")
+    }
+
     func testRecoveryFollowsCanonicalInstalledClientButNeverRegistersPreview() {
         let home = URL(fileURLWithPath: "/Users/test")
         let userCLI = home.appendingPathComponent("Applications/Launch Station.app/Contents/Resources/bin/launch")

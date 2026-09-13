@@ -346,6 +346,10 @@ TEST_SPCTL="$ARTIFACTS/mock-spctl"
 TEST_POLICY="$ARTIFACTS/release-trust-policy.plist"
 /bin/mkdir -p "$APP/Contents/Resources"
 /bin/cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+# This is a fixed verifier fixture, not the current release candidate. Keep its
+# bundle/provenance versions paired when the real application's version advances.
+fixture_version=$(/usr/bin/plutil -extract PackageVersion raw -o - "$RELEASE_PROVENANCE")
+/usr/bin/plutil -replace CFBundleShortVersionString -string "$fixture_version" "$APP/Contents/Info.plist"
 /bin/cp "$RELEASE_PROVENANCE" "$APP/Contents/Resources/BuildProvenance.plist"
 /bin/cp "$RELEASE_TRUST_POLICY_FIXTURE" "$TEST_POLICY"
 /bin/cp "$TEST_POLICY" "$APP/Contents/Resources/ReleaseTrustPolicy.plist"

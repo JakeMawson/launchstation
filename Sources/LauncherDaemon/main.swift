@@ -27,7 +27,8 @@ private func runDaemon() async throws {
         store: store,
         supervisor: supervisor,
         skillManager: try? LauncherSkillManager.located(environment: environment),
-        serviceVersion: serviceVersion
+        serviceVersion: serviceVersion,
+        upgradeJournalURL: LauncherPaths.defaultStateDirectory.appendingPathComponent("upgrade-reservation.json")
     )
 
     // Finish persisted-state reconciliation before publishing fresh connection metadata. Until the

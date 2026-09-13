@@ -14,6 +14,22 @@ enum ServiceRegistration {
         try requireSafePath(agentURL, allowMissing: true)
         let existing = try? Data(contentsOf: agentURL)
         let value = existing.flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) }
+        var installedApp = installedApp
+        if let dictionary = value as? [String: Any],
+           dictionary["Label"] as? String == LauncherPaths.launchAgentLabel,
+           dictionary["AssociatedBundleIdentifiers"] as? [String] == ["com.jakemawson.launchstation"],
+           let arguments = dictionary["ProgramArguments"] as? [String], arguments.count == 1,
+           let program = arguments.first, program.hasPrefix("/"),
+           program.hasSuffix("/Contents/Helpers/launchstationd") {
+            let candidate = URL(fileURLWithPath: program).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            // The installed contract, not a preview's executable path, selects a custom
+            // location. Verify the fixed publisher and complete bundle before trusting it.
+            // A rejected custom target never silently switches to a different installation.
+            try requireSafePath(candidate, allowMissing: false)
+            try requireSafePath(URL(fileURLWithPath: program), allowMissing: false)
+            try verifyBundle(candidate)
+            installedApp = candidate
+        }
         if let dictionary = value as? [String: Any],
            dictionary["Label"] as? String == LauncherPaths.launchAgentLabel,
            let arguments = dictionary["ProgramArguments"] as? [String],

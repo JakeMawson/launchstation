@@ -11,6 +11,45 @@ protocol HomebrewCaskUpdating {
     func install() async throws
 }
 
+protocol AppUpdateMaintenance: Sendable {
+    func prepareUpgrade(ownerPID: Int32?) async throws -> UpgradeMaintenanceReservation
+    func cancelUpgrade(reservationToken: String) async throws -> EmptyResponse
+}
+
+extension LauncherAPIClient: AppUpdateMaintenance {}
+
+@MainActor
+protocol AppUpdateApplicationLifecycle {
+    func installedVersion() -> String
+    func relaunch() async throws
+}
+
+struct RunningAppUpdateApplication: AppUpdateApplicationLifecycle {
+    func installedVersion() -> String { LauncherRuntimeVersion.current() }
+
+    func relaunch() async throws {
+        let bundleURL = Bundle.main.bundleURL
+        guard bundleURL.pathExtension.lowercased() == "app" else {
+            throw AppUpdateError.relaunchFailed("The running app is not installed as an application bundle.")
+        }
+        let relauncher = Process()
+        relauncher.executableURL = URL(fileURLWithPath: "/bin/sh")
+        relauncher.arguments = [
+            "-c",
+            "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.05; done; exec /usr/bin/open -n \"$2\"",
+            "launchstation-relaunch",
+            String(ProcessInfo.processInfo.processIdentifier),
+            bundleURL.path,
+        ]
+        relauncher.standardInput = FileHandle.nullDevice
+        relauncher.standardOutput = FileHandle.nullDevice
+        relauncher.standardError = FileHandle.nullDevice
+        do { try relauncher.run() }
+        catch { throw AppUpdateError.relaunchFailed(error.localizedDescription) }
+        NSApp.terminate(nil)
+    }
+}
+
 enum AppUpdateStatus: Equatable {
     case current(version: String, lastChecked: Date?, note: String?)
     case checking(version: String)
@@ -32,6 +71,7 @@ enum AppUpdateStatus: Equatable {
 }
 
 enum AppUpdateError: LocalizedError {
+    case unsafeServiceVersion
     case unavailableHomebrew
     case invalidLatestRelease
     case unexpectedResponse(Int)
@@ -41,6 +81,8 @@ enum AppUpdateError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .unsafeServiceVersion:
+            return "The running service cannot preserve an installer-owned upgrade gate. Restart the updated service before trying again."
         case .unavailableHomebrew:
             return "Homebrew is required to install Launch Station updates."
         case .invalidLatestRelease:
